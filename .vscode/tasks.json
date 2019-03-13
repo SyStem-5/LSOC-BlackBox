@@ -1,0 +1,51 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "cargo run --verbose",
+            "command": "cargo",
+            "args": [
+                "run",
+                "--verbose"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ]
+        },
+        {
+            "type": "shell",
+            "label": "cargo build --release",
+            "command": "cargo",
+            "args": [
+                "build",
+                "--release"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ]
+        },
+        {
+            "type": "shell",
+            "label": "Rust Code Formatter",
+            "command": "cargo",
+            "args": [
+                "fmt"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ]
+        },
+        {
+            "type": "cargo",
+            "label": "cargo build",
+            "command": "cargo",
+            "args": [
+                "build"
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ]
+        }
+    ]
+}
