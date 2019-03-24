@@ -3,18 +3,6 @@
     "tasks": [
         {
             "type": "shell",
-            "label": "cargo run --verbose",
-            "command": "cargo",
-            "args": [
-                "run",
-                "--verbose"
-            ],
-            "problemMatcher": [
-                "$rustc"
-            ]
-        },
-        {
-            "type": "shell",
             "label": "cargo build --release",
             "command": "cargo",
             "args": [
@@ -37,11 +25,11 @@
             ]
         },
         {
-            "type": "cargo",
-            "label": "cargo build",
+            "type": "shell",
+            "label": "Cargo Clippy",
             "command": "cargo",
             "args": [
-                "build"
+                "clippy"
             ],
             "problemMatcher": [
                 "$rustc"
