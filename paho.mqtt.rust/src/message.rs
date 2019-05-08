@@ -21,7 +21,7 @@
 
 use std::slice;
 use std::ffi::{CString};
-use std::os::raw::{c_void};
+use std::os::raw::c_void;
 use std::convert::From;
 use std::borrow::Cow;
 use std::fmt;
@@ -96,8 +96,10 @@ impl Message {
         let len = cmsg.payloadlen as usize;
         let payload =  slice::from_raw_parts(cmsg.payload as *mut u8, len);
 
+        let cmsg = cmsg.clone();
+
         let msg = Message {
-            cmsg: cmsg.clone(),
+            cmsg,
             topic,
             payload: payload.to_vec(),
         };

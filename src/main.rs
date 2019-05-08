@@ -50,7 +50,7 @@ const COMMAND_LIST: [&str; 6] = [
 ];
 
 // Displayed when the user start BlackBox with an unknown argument
-const START_COMMAND_INFO: &str = 
+const START_COMMAND_INFO: &str =
 r#"Available Commands:
     debug -> Log more detailed messages when running.
     gen_settings -> Generate default settings file.
@@ -189,7 +189,7 @@ fn main() {
                         Ok(r) => {
                             let cmd: nodes::Command = r;
 
-                            match cmd.command { 
+                            match cmd.command {
                                 nodes::CommandType::AnnounceOffline => {
                                     db_manager::remove_from_unregistered_table(
                                         topic_split[1],
@@ -206,7 +206,7 @@ fn main() {
                                                 &payload_str,
                                                 __pool.clone(),
                                             );
-                                            
+
                                             if new {
                                                 let urneged_node = serde_json::to_string(&web_interface::structures::UnregisteredNode {
                                                     identifier: topic_split[1].to_string(),
@@ -224,9 +224,9 @@ fn main() {
                                     }
                                 }
                                 nodes::CommandType::ImplementCreds => {
-                                    //This is here so we don't get a warning for this because we receive our own 
+                                    //This is here so we don't get a warning for this because we receive our own
                                     // publish when we send creds to the newly registered node
-                                    //We receive them because we send the creds directly to the nodes topic and 
+                                    //We receive them because we send the creds directly to the nodes topic and
                                     // we're also listening for element summary there
                                 }
                                 _ => warn!("Unsupported command received from unregistered topic. Cmd: {:?} | Data: {}", cmd.command, cmd.data)
@@ -266,7 +266,7 @@ fn main() {
                     match serde_json::from_str(&payload_str) {
                         Ok(result) => {
                             let cmd: web_interface::structures::Command = result;
-                            
+
                             match cmd.command {
                                 web_interface::structures::CommandType::NodeElementList => {
                                     match db_manager::get_node_element_list(__pool.clone()) {
@@ -300,7 +300,7 @@ fn main() {
                                 }
                                 web_interface::structures::CommandType::DiscoveryEnable => {
                                     if !discovery_mode {
-                                        discovery_mode = 
+                                        discovery_mode =
                                         db_manager::set_discovery_mode(
                                             true,
                                             &__unregistered_node_pass,
@@ -361,7 +361,7 @@ fn main() {
         .clean_session(true)
         //.ssl()
         .user_name(BLACKBOX_MQTT_USERNAME)
-        .password(&settings.blackbox_mqtt_client.mqtt_password)
+        .password(settings.blackbox_mqtt_client.mqtt_password.to_owned())
         .will_message(web_interface::wi_announce_blackbox(&cli, false))
         .finalize();
 
@@ -584,7 +584,7 @@ fn check_if_root() {
         if user != "root" {
             eprintln!("This application need to be ran as root.\n");
             std::process::exit(1);
-        } 
+        }
     } else {
         eprintln!("Could not find user.\n");
         std::process::exit(1);

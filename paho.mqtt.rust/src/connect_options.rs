@@ -30,6 +30,7 @@ use std::time::Duration;
 use std::ffi::CString;
 use std::os::raw::c_int;
 
+use token::Token;
 use message::Message;
 use will_options::WillOptions;
 use ssl_options::SslOptions;
@@ -40,10 +41,10 @@ use string_collection::StringCollection;
 pub const MQTT_VERSION_DEFAULT: u32 = ffi::MQTTVERSION_DEFAULT;
 
 /// Connect with MQTT v3.1
-pub const MQTT_VERSION_3_1: u32     = ffi::MQTTVERSION_3_1;
+pub const MQTT_VERSION_3_1: u32 = ffi::MQTTVERSION_3_1;
 
 /// Connect with MQTT v3.1.1
-pub const MQTT_VERSION_3_1_1: u32   = ffi::MQTTVERSION_3_1_1;
+pub const MQTT_VERSION_3_1_1: u32 = ffi::MQTTVERSION_3_1_1;
 
 /////////////////////////////////////////////////////////////////////////////
 // Connections
@@ -54,11 +55,13 @@ pub const MQTT_VERSION_3_1_1: u32   = ffi::MQTTVERSION_3_1_1;
 #[derive(Debug)]
 pub struct ConnectOptions {
     /// The underlying C options structure.
+    /// The 'will', 'ssl', 'username', and 'password' fields should
+    /// be NULL (not empty) if unused.
     pub copts: ffi::MQTTAsync_connectOptions,
     will: Option<Box<WillOptions>>,
     ssl: Option<Box<SslOptions>>,
-    user_name: CString,
-    password: CString,
+    user_name: Option<CString>,
+    password: Option<CString>,
     server_uris: StringCollection,
 }
 
@@ -85,24 +88,23 @@ impl ConnectOptions {
             ptr::null_mut()
         };
 
-        opts.copts.username = if opts.user_name.as_bytes().len() != 0 {
-            opts.user_name.as_ptr()
+        opts.copts.username = if let Some(ref user_name) = opts.user_name {
+            user_name.as_ptr()
         }
         else {
             ptr::null()
         };
 
-        opts.copts.password = if opts.password.as_bytes().len() != 0 {
-            opts.password.as_ptr()
+        opts.copts.password = if let Some(ref password) = opts.password {
+            password.as_ptr()
         }
         else {
             ptr::null()
         };
-        //opts.copts.password = opts.password.as_ptr();
 
         let n = opts.server_uris.len();
         if n != 0 {
-            opts.copts.serverURIs = opts.server_uris.as_c_arr_ptr();
+            opts.copts.serverURIs = opts.server_uris.as_c_arr_mut_ptr();
             opts.copts.serverURIcount = n as c_int;
         }
         else {
@@ -125,6 +127,16 @@ impl ConnectOptions {
     pub fn set_clean_session(&mut self, clean: bool) {
         self.copts.cleansession = if clean { 1 } else { 0 }
     }
+
+    /// Sets the token to ber used for connect completion callbacks.
+    /// Note that we leak the token to give to the C lib. When we're
+    /// done with it, we must recover and drop it (i.e. in the completion
+    /// callback).
+    pub fn set_token(&mut self, tok: Token) {
+        self.copts.onSuccess = Some(Token::on_success);
+        self.copts.onFailure = Some(Token::on_failure);
+        self.copts.context = Token::into_raw(tok);
+    }
 }
 
 impl Default for ConnectOptions {
@@ -133,8 +145,8 @@ impl Default for ConnectOptions {
             copts: ffi::MQTTAsync_connectOptions::default(),
             will: None,
             ssl: None,
-            user_name: CString::new("").unwrap(),
-            password: CString::new("").unwrap(),
+            user_name: None,
+            password: None,
             server_uris: StringCollection::default(),
         };
         ConnectOptions::fixup(opts)
@@ -164,8 +176,8 @@ pub struct ConnectOptionsBuilder {
     copts: ffi::MQTTAsync_connectOptions,
     will: Option<WillOptions>,
     ssl: Option<SslOptions>,
-    user_name: String,
-    password: String,
+    user_name: Option<String>,
+    password: Option<String>,
     server_uris: StringCollection,
 }
 
@@ -176,8 +188,8 @@ impl ConnectOptionsBuilder {
             copts: ffi::MQTTAsync_connectOptions::default(),
             will: None,
             ssl: None,
-            user_name: "".to_string(),
-            password: "".to_string(),
+            user_name: None,
+            password: None,
             server_uris: StringCollection::default(),
         }
     }
@@ -260,7 +272,7 @@ impl ConnectOptionsBuilder {
     pub fn user_name<S>(&mut self, user_name: S) -> &mut ConnectOptionsBuilder
         where S: Into<String>
     {
-        self.user_name = user_name.into();
+        self.user_name = Some(user_name.into());
         self
     }
 
@@ -271,8 +283,10 @@ impl ConnectOptionsBuilder {
     ///
     /// `password` The password to send to the broker.
     ///
-    pub fn password(&mut self, password: &str) -> &mut ConnectOptionsBuilder {
-        self.password = password.to_string();
+    pub fn password<S>(&mut self, password: S) -> &mut ConnectOptionsBuilder
+        where S: Into<String>
+    {
+        self.password = Some(password.into());
         self
     }
 
@@ -363,8 +377,14 @@ impl ConnectOptionsBuilder {
                     Some(Box::new(ssl_opts.clone()))
                 }
                 else { None },
-            user_name: CString::new(self.user_name.clone()).unwrap(),
-            password: CString::new(self.password.clone()).unwrap(),
+            user_name: if let Some(ref user_name) = self.user_name {
+                    Some(CString::new(user_name.clone()).unwrap())
+                }
+                else { None },
+            password: if let Some(ref password) = self.password {
+                    Some(CString::new(password.clone()).unwrap())
+                }
+                else { None },
             server_uris: self.server_uris.clone(),
         };
         ConnectOptions::fixup(opts)
@@ -437,8 +457,37 @@ mod tests {
         let opts = ConnectOptionsBuilder::new()
                         .user_name(NAME).finalize();
 
-        let s = unsafe { CStr::from_ptr(opts.copts.username) };
-        assert_eq!(NAME, s.to_str().unwrap());
+        assert!(!opts.copts.username.is_null());
+
+        if let Some(ref user_name) = opts.user_name {
+            assert_eq!(NAME, user_name.to_str().unwrap());
+
+            let s = unsafe { CStr::from_ptr(opts.copts.username) };
+            assert_eq!(NAME, s.to_str().unwrap());
+        }
+        else {
+            assert!(false);
+        };
+    }
+
+    #[test]
+    fn test_password() {
+        const PSWD: &'static str = "some-random-password";
+
+        let opts = ConnectOptionsBuilder::new()
+                        .password(PSWD).finalize();
+
+        assert!(!opts.copts.password.is_null());
+
+        if let Some(ref password) = opts.password {
+            assert_eq!(PSWD, password.to_str().unwrap());
+
+            let s = unsafe { CStr::from_ptr(opts.copts.password) };
+            assert_eq!(PSWD, s.to_str().unwrap());
+        }
+        else {
+            assert!(false);
+        };
     }
 
     #[test]
@@ -489,11 +538,21 @@ mod tests {
         assert_eq!(0, opts.copts.cleansession);
         assert_eq!(MAX_INFLIGHT, opts.copts.maxInflight);
 
-        assert_eq!(USER_NAME.as_bytes(), opts.user_name.as_bytes());
-        assert_eq!(PASSWORD.as_bytes(), opts.password.as_bytes());
+        assert_eq!(USER_NAME, opts.user_name.as_ref().unwrap().to_str().unwrap());
+        assert_eq!(PASSWORD, opts.password.as_ref().unwrap().to_str().unwrap());
 
-        assert_eq!(opts.user_name.as_ptr(), opts.copts.username);
-        assert_eq!(opts.password.as_ptr(), opts.copts.password);
+        if let Some(ref user_name) = opts.user_name {
+            assert_eq!(user_name.as_ptr(), opts.copts.username)
+        }
+        else {
+            assert!(false)
+        };
+        if let Some(ref password) = opts.password {
+            assert_eq!(password.as_ptr(), opts.copts.password)
+        }
+        else {
+            assert!(false)
+        };
 
         assert_eq!(CONNECT_TIMEOUT_SECS as i32, opts.copts.connectTimeout);
     }

@@ -2,6 +2,9 @@
 **/*.rs.bk
 **/*.orig
 Cargo.lock
-\.hg
-\.hgtags
+/.hg
+/.hgtags
+/.hgignore
+/*.vp*
+/*.vtg
 

@@ -32,10 +32,13 @@
 // Temporary
 #![allow(dead_code)]
 
+extern crate futures;
+extern crate futures_timer;
+
 #[macro_use]
 extern crate log;
 
-extern crate paho_mqtt3as_sys as ffi;
+extern crate paho_mqtt_sys as ffi;
 
 pub use async_client::*;        //{AsyncClient, AsyncClientBuilder};
 pub use client::*;              //{Client, ClientBuilder};
@@ -44,7 +47,9 @@ pub use connect_options::*;     //{ConnectOptions, ConnectOptionsBuilder, MQTT_V
 pub use will_options::*;        //{WillOptions, WillOptionsBuilder};
 pub use ssl_options::*;         //{SslOptions, SslOptionsBuilder};
 pub use disconnect_options::*;  //{DisconnectOptions, DisconnectOptionsBuilder};
+pub use response_options::*;    //{ResponseOptions};
 pub use message::*;             //{Message, MessageBuilder};
+pub use token::*;               //{Token}
 pub use topic::*;               //{Topic}
 pub use client_persistence::*;
 pub use errors::*;              //{MqttResult, MqttError, ErrorKind};
@@ -73,8 +78,14 @@ pub mod ssl_options;
 /// Options for disconnecting from the server.
 pub mod disconnect_options;
 
+/// Options for responses coming back from the C lib.
+pub mod response_options;
+
 /// The message object
 pub mod message;
+
+/// Tokens to monitor asynchronous operations
+pub mod token;
 
 /// Options for creating topic objects that are associated with a
 /// particular server.

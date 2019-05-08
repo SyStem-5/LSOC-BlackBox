@@ -38,7 +38,7 @@ auth_opt_user {}\n
 auth_opt_pass {}\n
 auth_opt_userquery SELECT password FROM mqtt_users WHERE username = $1 limit 1\n
 auth_opt_superquery SELECT COALESCE(COUNT(*),0) FROM mqtt_users WHERE username = $1 AND superuser = 1\n
-auth_opt_aclquery SELECT topic FROM mqtt_acl WHERE (username = $1) AND (rw >= $2)", 
+auth_opt_aclquery SELECT topic FROM mqtt_acl WHERE (username = $1) AND (rw >= $2)",
 settings.db_ip, settings.db_port, settings.db_name, settings.db_username, settings.db_password);
 
     let mut file = File::create(settings.mosquitto_conf_save_location.to_string()).unwrap();
@@ -119,7 +119,7 @@ pub fn on_mqtt_connect_failure(cli: &AsyncClient, _msgid: u16, rc: i32) {
 /**
  * OnConnectionLost mqtt callback.
  */
-pub fn on_mqtt_connection_lost(cli: &mut AsyncClient) {
+pub fn on_mqtt_connection_lost(cli: &AsyncClient) {
     error!("Connection lost. Attempting reconnect.");
 
     thread::sleep(time::Duration::from_millis(2500));
