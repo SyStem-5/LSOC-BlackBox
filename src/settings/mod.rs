@@ -14,7 +14,7 @@ use crate::APP_VERSION;
 
 const BASE_DIRECTORY: &str = "/etc/BlackBox/";
 const SETTINGS_FILE_LOCATION: &str = "/etc/BlackBox/settings.json";
-const VERSION_FILE_LOCATION: &str = "/etc/BlackBox/blackbox_version.json";
+const VERSION_FILE_LOCATION: &str = "/etc/BlackBox/blackbox.version";
 
 const SETTINGS_DEFAULT: &str = r#"{
     "mosquitto_broker_config": {
