@@ -14,7 +14,6 @@ extern crate serde_derive;
 #[macro_use]
 extern crate strum_macros;
 
-
 use paho_mqtt as mqtt;
 
 // use postgres;
@@ -577,18 +576,16 @@ fn main() {
 
 /**
  * Checks if app is root.
- * If the app is not root, tell the user and exit the program.
+ * If the app is not root, make sure the user knows that some functions will not work.
  */
 fn check_if_root() {
     if let Ok(user) = env::var("USER") {
-        if user != "root" {
-            eprintln!("This application need to be ran as root.\n");
-            std::process::exit(1);
+        if user == "root" {
+            return;
         }
-    } else {
-        eprintln!("Could not find user.\n");
-        std::process::exit(1);
     }
+
+    error!("This application need to be ran as root. Some functions WILL fail.");
 }
 
 /**
