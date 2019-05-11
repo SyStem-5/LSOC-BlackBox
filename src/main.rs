@@ -63,9 +63,6 @@ static INTERFACE_MQTT_USERNAME: &str = "external_interface";
 fn main() {
     let mut daemon_mode = false;
 
-    // Check if we're root, exit if we're not
-    check_if_root();
-
     let args: Vec<String> = env::args().collect();
 
     if args.len() > 1 {
@@ -117,6 +114,8 @@ fn main() {
     } else {
         init_logging("info");
     }
+
+    check_if_root();
 
     // Load settings file
     // If the settings returns Err, we exit
