@@ -160,8 +160,6 @@ fn refresh_version_file() {
 pub fn write_default_settings() -> Result<(), Error> {
     info!("Generating default settings file...");
 
-    create_dir_all(BASE_DIRECTORY)?;
-
     let mut file = File::create(SETTINGS_FILE_LOCATION)?;
     file.write_all(SETTINGS_DEFAULT.as_bytes())?;
 
