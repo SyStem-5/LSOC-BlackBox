@@ -50,7 +50,7 @@
                 "reveal": "silent",
                 "revealProblems": "never",
                 "focus": true,
-                "panel": "dedicated",
+                "panel": "shared",
                 "showReuseMessage": true,
                 "clear": false
             }
