@@ -209,7 +209,7 @@ fn main() {
                                             );
 
                                             if new {
-                                                let urneged_node = serde_json::to_string(&web_interface::structures::UnregisteredNode {
+                                                let urneged_node = serde_json::to_string(&web_interface::structs::UnregisteredNode {
                                                     identifier: topic_split[1].to_string(),
                                                     elements: cmd.data.to_string()
                                                 }).unwrap();
@@ -266,16 +266,16 @@ fn main() {
                 } else if topic_split[0] == INTERFACE_MQTT_USERNAME {
                     match serde_json::from_str(&payload_str) {
                         Ok(result) => {
-                            let cmd: web_interface::structures::Command = result;
+                            let cmd: web_interface::structs::Command = result;
 
                             match cmd.command {
-                                web_interface::structures::CommandType::NodeElementList => {
+                                web_interface::structs::CommandType::NodeElementList => {
                                     match db_manager::get_node_element_list(__pool.clone()) {
                                         Some(data) => web_interface::node_element_response(_cli, data),
                                         None => {}
                                     }
                                 }
-                                web_interface::structures::CommandType::NodeRegistration => {
+                                web_interface::structs::CommandType::NodeRegistration => {
                                     let res = nodes::register_node(
                                         &str::replace(&cmd.data, "'", "\""),
                                         &_cli,
@@ -286,20 +286,20 @@ fn main() {
                                         Err(e) => error!("Could not register node. {}", e)
                                     }
                                 }
-                                web_interface::structures::CommandType::UnregisterNode => {
+                                web_interface::structs::CommandType::UnregisterNode => {
                                     nodes::unregister_node(&cmd.data, _cli, __pool.clone());
                                 }
-                                web_interface::structures::CommandType::UpdateNodeInfo => {
+                                web_interface::structs::CommandType::UpdateNodeInfo => {
                                     match serde_json::from_str(&str::replace(&cmd.data, "'", "\"")) {
                                         Ok(result) => {
-                                            let node: web_interface::structures::NodeInfoEdit = result;
+                                            let node: web_interface::structs::NodeInfoEdit = result;
 
                                             db_manager::edit_node_info(node, __pool.clone());
                                         }
                                         Err(e) => error!("Could not parse Node info update payload. {}", e)
                                     }
                                 }
-                                web_interface::structures::CommandType::DiscoveryEnable => {
+                                web_interface::structs::CommandType::DiscoveryEnable => {
                                     if !discovery_mode {
                                         discovery_mode =
                                         db_manager::set_discovery_mode(
@@ -313,7 +313,7 @@ fn main() {
                                         nodes::announce_discovery(&_cli);
                                     }
                                 }
-                                web_interface::structures::CommandType::DiscoveryDisable => {
+                                web_interface::structs::CommandType::DiscoveryDisable => {
                                     db_manager::set_discovery_mode(
                                         false,
                                         "",
@@ -322,7 +322,7 @@ fn main() {
                                     );
                                     discovery_mode = false;
                                 }
-                                web_interface::structures::CommandType::AnnounceOffline => {
+                                web_interface::structs::CommandType::AnnounceOffline => {
                                     info!("WebInterface is Offline");
                                     db_manager::set_discovery_mode(
                                         false,
@@ -332,7 +332,7 @@ fn main() {
                                     );
                                     discovery_mode = false;
                                 }
-                                web_interface::structures::CommandType::AnnounceOnline => {
+                                web_interface::structs::CommandType::AnnounceOnline => {
                                     info!("WebInterface is Online");
 
                                     // If Web interface announces online, we respond by saying BlackBox is online too
@@ -354,13 +354,13 @@ fn main() {
                 } else if topic_split[0] == NEUTRONCOMMUNICATOR_TOPIC {
                     match serde_json::from_str(&payload_str) {
                         Ok(result) => {
-                            let cmd: neutron_communicator::structures::Command = result;
+                            let cmd: neutron_communicator::structs::Command = result;
 
                             match cmd.command {
-                                neutron_communicator::structures::CommandType::StateUpdate => {
+                                neutron_communicator::structs::CommandType::StateUpdate => {
                                     warn!("NECO Status Update | Username: {} Data: {}", topic_split[1], cmd.data);
                                 }
-                                neutron_communicator::structures::CommandType::Changelogs => {
+                                neutron_communicator::structs::CommandType::Changelogs => {
                                     warn!("Changelogs: {}", cmd.data);
                                 }
                                 _ => {
@@ -447,7 +447,7 @@ fn main() {
                 "test_startupdateinstall" => {
                     let msg = mqtt::Message::new(
                         NEUTRONCOMMUNICATOR_TOPIC,
-                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structures::CommandType::StartUpdateDownloadAndInstall, "")).unwrap(),
+                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structs::CommandType::StartUpdateDownloadAndInstall, "")).unwrap(),
                         1,
                     );
                     cli.publish(msg);
@@ -455,7 +455,7 @@ fn main() {
                 "test_refreshum" => {
                     let msg = mqtt::Message::new(
                         NEUTRONCOMMUNICATOR_TOPIC,
-                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structures::CommandType::RefreshUpdateManifest, "")).unwrap(),
+                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structs::CommandType::RefreshUpdateManifest, "")).unwrap(),
                         1,
                     );
                     cli.publish(msg);
@@ -463,7 +463,7 @@ fn main() {
                 "test_changelogs" => {
                     let msg = mqtt::Message::new(
                         NEUTRONCOMMUNICATOR_TOPIC,
-                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structures::CommandType::Changelogs, "")).unwrap(),
+                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structs::CommandType::Changelogs, "")).unwrap(),
                         1,
                     );
                     cli.publish(msg);

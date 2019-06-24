@@ -5,7 +5,7 @@ use crate::credentials::generate_mqtt_hash;
 use crate::mqtt_broker_manager::{QOS, TOPICS, NEUTRONCOMMUNICATOR_TOPIC};
 use crate::nodes::ElementType;
 use crate::settings::{NeutronCommunicator, SettingsDatabase, SettingsWebInterface};
-use crate::web_interface::structures::{ElementsFiltered, NodeFiltered, NodeInfoEdit};
+use crate::web_interface::structs::{ElementsFiltered, NodeFiltered, NodeInfoEdit};
 use crate::{BLACKBOX_MQTT_USERNAME, INTERFACE_MQTT_USERNAME};
 
 use postgres::params::{ConnectParams, Host};

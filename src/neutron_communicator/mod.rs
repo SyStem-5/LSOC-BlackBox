@@ -1,7 +1,7 @@
-pub mod structures;
+pub mod structs;
 
-pub fn new_command(command: structures::CommandType, data: &str) -> structures::Command {
-    structures::Command {
+pub fn new_command(command: structs::CommandType, data: &str) -> structs::Command {
+    structs::Command {
         command: command,
         data: String::from(data)
     }
