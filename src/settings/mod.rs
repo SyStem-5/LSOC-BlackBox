@@ -42,7 +42,13 @@ const SETTINGS_DEFAULT: &str = r#"{
     },
     "external_interface_settings": {
         "mqtt_password": ""
-    }
+    },
+    "neutron_communicators": [
+        {
+            "mqtt_username": "",
+            "mqtt_password": ""
+        }
+    ]
 }"#;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,6 +62,8 @@ pub struct Settings {
     pub nodes: SettingsNodes,
 
     pub external_interface_settings: SettingsWebInterface,
+
+    pub neutron_communicators: Vec<NeutronCommunicator>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -91,6 +99,12 @@ pub struct SettingsDatabase {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SettingsWebInterface {
+    pub mqtt_password: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NeutronCommunicator {
+    pub mqtt_username: String,
     pub mqtt_password: String,
 }
 
@@ -246,6 +260,27 @@ fn load_settings() -> Result<Settings, Error> {
         }
     }
 
+    let mut neco_accounts = Vec::new();
+    for mut neco in settings.neutron_communicators.clone() {
+        if !neco.mqtt_username.is_empty() && neco.mqtt_password.is_empty() {
+            // Set the password in the settings struct
+            neco.mqtt_password = generate_mqtt_password();
+
+            neco_accounts.push(neco);
+        }
+    }
+
+    if !neco_accounts.is_empty() {
+        // Set the neutron_communicators struct to the changed one
+        settings.neutron_communicators = neco_accounts.clone();
+
+        // Save the new settings to file
+        if let Err(e) = save_neutron_accounts(neco_accounts) {
+            error!("Could not save Neutron Communicator mqtt accounts to settings. {}", e);
+            return Err(Error::new(std::io::ErrorKind::Other, ""));
+        }
+    }
+
     Ok(settings)
 }
 
@@ -282,6 +317,26 @@ fn save_web_interface_password(password: &str) -> Result<(), Error> {
     let mut settings: Settings = from_str(&contents)?;
 
     settings.external_interface_settings.mqtt_password = String::from(password);
+
+    let mut file = File::create(SETTINGS_FILE_LOCATION)?;
+    file.write_all(&format!("{}", to_string(&settings)?).as_bytes())?;
+
+    Ok(())
+}
+
+/**
+ * Saves Neutron mqtt account data to the settings file.
+ */
+fn save_neutron_accounts(neutron_communicators: Vec<NeutronCommunicator>) -> Result<(), Error> {
+    let mut contents = String::new();
+
+    let mut file = File::open(SETTINGS_FILE_LOCATION)?;
+
+    file.read_to_string(&mut contents)?;
+
+    let mut settings: Settings = from_str(&contents)?;
+
+    settings.neutron_communicators = neutron_communicators;
 
     let mut file = File::create(SETTINGS_FILE_LOCATION)?;
     file.write_all(&format!("{}", to_string(&settings)?).as_bytes())?;

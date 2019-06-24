@@ -25,6 +25,7 @@ use paho_mqtt as mqtt;
 mod credentials;
 mod db_manager;
 mod mqtt_broker_manager;
+mod neutron_communicator;
 mod nodes;
 mod web_interface;
 
@@ -33,7 +34,7 @@ mod settings;
 use mqtt_broker_manager::{
     on_mqtt_connect_failure, on_mqtt_connect_success, on_mqtt_connection_lost,
 };
-use mqtt_broker_manager::{REGISTERED_TOPIC, UNREGISTERED_TOPIC};
+use mqtt_broker_manager::{REGISTERED_TOPIC, UNREGISTERED_TOPIC, NEUTRONCOMMUNICATOR_TOPIC};
 
 use std::{env, io, io::Write};
 
@@ -59,6 +60,7 @@ r#"Available Commands:
 
 static BLACKBOX_MQTT_USERNAME: &str = "blackbox";
 static INTERFACE_MQTT_USERNAME: &str = "external_interface";
+//static NEUTRON_COMMUNICATORS: &str = NEUTRONCOMMUNICATOR_TOPIC;
 
 fn main() {
     let mut daemon_mode = false;
@@ -138,6 +140,7 @@ fn main() {
         &settings.database_settings,
         &settings.blackbox_mqtt_client.mqtt_password,
         &settings.external_interface_settings,
+        &settings.neutron_communicators,
     );
     match database_init {
         Ok(db_pool) => _pool = db_pool,
@@ -348,6 +351,26 @@ fn main() {
                         },
                         Err(e) => warn!("Could not parse Web Interface command. {} | {}", e, &payload_str)
                     }
+                } else if topic_split[0] == NEUTRONCOMMUNICATOR_TOPIC {
+                    match serde_json::from_str(&payload_str) {
+                        Ok(result) => {
+                            let cmd: neutron_communicator::structures::Command = result;
+
+                            match cmd.command {
+                                neutron_communicator::structures::CommandType::StateUpdate => {
+                                    warn!("NECO Status Update | Username: {} Data: {}", topic_split[1], cmd.data);
+                                }
+                                neutron_communicator::structures::CommandType::Changelogs => {
+                                    warn!("Changelogs: {}", cmd.data);
+                                }
+                                _ => {
+                                    dbg!("This is going to be removed once we are v1.0");
+                                    warn!("Unsupported command received from NECO topic. Cmd: {:?} | Data: {}", cmd.command, cmd.data)
+                                }
+                            }
+                        }
+                        Err(e) => warn!("Could not parse NECO command. {}", e)
+                    }
                 }
             }
         }
@@ -421,6 +444,30 @@ fn main() {
                 //     );
                 //     let _tok = cli.publish(msg);
                 // }
+                "test_startupdateinstall" => {
+                    let msg = mqtt::Message::new(
+                        NEUTRONCOMMUNICATOR_TOPIC,
+                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structures::CommandType::StartUpdateDownloadAndInstall, "")).unwrap(),
+                        1,
+                    );
+                    cli.publish(msg);
+                }
+                "test_refreshum" => {
+                    let msg = mqtt::Message::new(
+                        NEUTRONCOMMUNICATOR_TOPIC,
+                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structures::CommandType::RefreshUpdateManifest, "")).unwrap(),
+                        1,
+                    );
+                    cli.publish(msg);
+                }
+                "test_changelogs" => {
+                    let msg = mqtt::Message::new(
+                        NEUTRONCOMMUNICATOR_TOPIC,
+                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structures::CommandType::Changelogs, "")).unwrap(),
+                        1,
+                    );
+                    cli.publish(msg);
+                }
                 "regen_mqtt_password" => {
                     warn!("BlackBox credentials are going to be generated from a password specified in the settings.");
                     print!("Are you sure you want to regenerate BlackBox Mosquitto Credentials? [y]es | [n]o : ");

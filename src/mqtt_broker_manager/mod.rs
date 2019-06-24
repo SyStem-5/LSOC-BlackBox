@@ -13,9 +13,10 @@ use crate::INTERFACE_MQTT_USERNAME;
 pub static REGISTERED_TOPIC: &str = "registered";
 pub static UNREGISTERED_TOPIC: &str = "unregistered";
 pub static WEBINTERFACE_TOPIC: &str = INTERFACE_MQTT_USERNAME;
+pub static NEUTRONCOMMUNICATOR_TOPIC: &str = "neutron_communicators";
 
-pub static TOPICS: &[&str] = &["registered/#", "unregistered/#", "external_interface/#"];
-pub static QOS: &[i32] = &[1, 1, 1];
+pub static TOPICS: &[&str] = &["registered/#", "unregistered/#", "external_interface/#", "neutron_communicators/#"];
+pub static QOS: &[i32] = &[1, 1, 1, 1];
 
 /**
  * Generates mosquitto(mqtt) configuration file.
@@ -99,11 +100,13 @@ pub fn on_mqtt_connect_success(cli: &AsyncClient, _msgid: u16) {
 
     info!("Subscribing to: {}", TOPICS[0]);
     info!("Subscribing to: {}", TOPICS[2]);
+    info!("Subscribing to: {}", TOPICS[3]);
 
     announce_blackbox_online(cli);
 
     cli.subscribe(TOPICS[0], QOS[0]);
     cli.subscribe(TOPICS[2], QOS[2]);
+    cli.subscribe(TOPICS[3], QOS[3]);
 }
 
 /**

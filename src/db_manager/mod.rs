@@ -2,9 +2,9 @@
 //#![allow(dead_code)]
 
 use crate::credentials::generate_mqtt_hash;
-use crate::mqtt_broker_manager::{QOS, TOPICS};
+use crate::mqtt_broker_manager::{QOS, TOPICS, NEUTRONCOMMUNICATOR_TOPIC};
 use crate::nodes::ElementType;
-use crate::settings::{SettingsDatabase, SettingsWebInterface};
+use crate::settings::{NeutronCommunicator, SettingsDatabase, SettingsWebInterface};
 use crate::web_interface::structures::{ElementsFiltered, NodeFiltered, NodeInfoEdit};
 use crate::{BLACKBOX_MQTT_USERNAME, INTERFACE_MQTT_USERNAME};
 
@@ -101,6 +101,7 @@ pub fn init(
     db_settings: &SettingsDatabase,
     mqtt_blackbox_pass: &str,
     web_interface: &SettingsWebInterface,
+    neutron_communicators: &[NeutronCommunicator],
 ) -> Result<(Pool<PostgresConnectionManager>), i8> {
     let builder = ConnectParams::builder()
         .port(db_settings.db_port.parse::<u16>().unwrap())
@@ -172,6 +173,21 @@ pub fn init(
                         &web_interface.mqtt_password,
                     ) {
                         return Err(1);
+                    }
+                }
+
+                for neutron_communicator in neutron_communicators {
+                    if !neutron_communicator.mqtt_password.is_empty()
+                        && !neutron_communicator.mqtt_username.is_empty()
+                        && !check_mqtt_user_exists(db.clone(), &neutron_communicator.mqtt_username)
+                    {
+                        if !set_neutron_communicator_creds(
+                            db.clone(),
+                            &neutron_communicator.mqtt_username,
+                            &neutron_communicator.mqtt_password,
+                        ) {
+                            return Err(1);
+                        }
                     }
                 }
             } else {
@@ -476,6 +492,64 @@ pub fn set_mqtt_bb_creds(
     }
 
     return true;
+}
+
+/**
+ * Adds the neutron communicator credentials to the mqtt_users and mqtt_acl tables.
+ */
+pub fn set_neutron_communicator_creds(
+    db_conn: Pool<PostgresConnectionManager>,
+    username: &str,
+    password: &str,
+) -> bool {
+    let mut _conn = db_conn.get().unwrap();
+
+    let hash = generate_mqtt_hash(password);
+
+    // Add external_interface credentials to the users table
+    if !add_node_to_mqtt_users(db_conn.clone(), username, &hash) {
+        return false;
+    }
+
+    // Add to ACL table
+
+    // Subscribe r/w to "neutron_communicators/[username]"
+    let topic_self = "neutron_communicators/%u";//TOPICS[3];
+
+    // For registering to self topic (read/write)
+    let query = format!(
+        "INSERT INTO {} (username, topic, rw)
+                    VALUES ($1, $2, $3);",
+        &TABLE_MQTT_ACL
+    );
+    if let Err(e) = _conn.execute(&query, &[&username, &topic_self, &7]) {
+        error!(
+            "Could not add an ACL entry for neutron_communicator. Topic: {} Username: {}. Error: {}",
+            topic_self, username, e
+        );
+
+        return false;
+    }
+
+    // Subscribe r-only to "neutron_communicators"
+    let topic_global = NEUTRONCOMMUNICATOR_TOPIC;
+
+    // For registering to self topic (read/write)
+    let query = format!(
+        "INSERT INTO {} (username, topic, rw)
+                    VALUES ($1, $2, $3);",
+        &TABLE_MQTT_ACL
+    );
+    if let Err(e) = _conn.execute(&query, &[&username, &topic_global, &5]) {
+        error!(
+            "Could not add an ACL entry for neutron_communicator. Topic: {} Username: {}. Error: {}",
+            topic_global, username, e
+        );
+
+        return false;
+    }
+
+    true
 }
 
 /**
