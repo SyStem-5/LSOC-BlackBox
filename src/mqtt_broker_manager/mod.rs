@@ -113,7 +113,7 @@ pub fn on_mqtt_connect_success(cli: &AsyncClient, _msgid: u16) {
  * OnConnectionFail mqtt callback.
  */
 pub fn on_mqtt_connect_failure(cli: &AsyncClient, _msgid: u16, rc: i32) {
-    warn!("Connection attempt failed with error code {}.\n", rc);
+    debug!("Connection attempt failed with error code {}.", rc);
 
     thread::sleep(time::Duration::from_millis(2500));
     cli.reconnect_with_callbacks(on_mqtt_connect_success, on_mqtt_connect_failure);
@@ -123,7 +123,7 @@ pub fn on_mqtt_connect_failure(cli: &AsyncClient, _msgid: u16, rc: i32) {
  * OnConnectionLost mqtt callback.
  */
 pub fn on_mqtt_connection_lost(cli: &AsyncClient) {
-    error!("Connection lost. Attempting reconnect.");
+    error!("Connection lost. Reconnecting...");
 
     thread::sleep(time::Duration::from_millis(2500));
     cli.reconnect_with_callbacks(on_mqtt_connect_success, on_mqtt_connect_failure);
