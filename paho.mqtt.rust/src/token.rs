@@ -230,7 +230,7 @@ impl Token {
 
     // Callback from the C library when an async operation fails.
     pub(crate) unsafe extern "C" fn on_failure(context: *mut c_void, rsp: *mut ffi::MQTTAsync_failureData) {
-        warn!("Token failure! {:?}, {:?}", context, rsp);
+        debug!("Token failure! {:?}, {:?}", context, rsp);
         if context.is_null() { return }
 
         let tok = Token::from_raw(context);
@@ -414,4 +414,3 @@ mod tests {
         }
     }
 }
-

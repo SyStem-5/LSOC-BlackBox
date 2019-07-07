@@ -121,7 +121,7 @@ impl AsyncClient {
     // We pass the call on to the handler registered with the client, if any.
     unsafe extern "C" fn on_connection_lost(context: *mut c_void,
                                             _cause: *mut c_char) {
-        warn!("Connection lost. Context: {:?}", context);
+        debug!("Connection lost. Context: {:?}", context);
         if !context.is_null() {
             let pcli: Box<InnerAsyncClient> = Box::from_raw(context as *mut _);
             let cli = AsyncClient { inner: pcli };
@@ -231,7 +231,7 @@ impl AsyncClient {
         };
 
         if rc != 0 {
-            warn!("Create result: {}", rc);
+            debug!("Create result: {}", rc);
             fail!((ErrorKind::General, rc, errors::error_message(rc)));
         }
         debug!("AsyncClient handle: {:?}", cli.handle);
@@ -645,7 +645,7 @@ impl AsyncClient {
         self.set_message_callback(move |_,msg| {
             if let Err(err) = tx.try_send(msg) {
                 if err.is_full() {
-                    warn!("Stream losing messages");
+                    debug!("Stream losing messages");
                 }
                 else {
                     error!("Stream error: {:?}", err);
@@ -802,7 +802,7 @@ impl AsyncClientBuilder {
                                              &mut copts)
         };
 
-        if rc != 0 { warn!("Create failure: {}", rc); }
+        if rc != 0 { debug!("Create failure: {}", rc); }
         debug!("AsyncClient handle: {:?}", cli.handle);
 
         // TODO: This can fail. We should return a Result<AsyncClient>
@@ -845,7 +845,7 @@ mod tests {
         // They should match (inner didn't move)
         assert_eq!(pctx, new_pctx);
     }
-    
+
     #[test]
     fn test_create_async_client() {
         let client = AsyncClient::new("tcp://localhost:1883");
@@ -865,4 +865,3 @@ mod tests {
         }
     }
 }
-
