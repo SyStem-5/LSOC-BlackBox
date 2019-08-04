@@ -35,7 +35,8 @@ const SETTINGS_DEFAULT: &str = r#"{
     "blackbox_mqtt_client": {
         "mqtt_ip": "127.0.0.1",
         "mqtt_port": "8883",
-        "mqtt_password": ""
+        "mqtt_password": "",
+        "cafile": "/etc/mosquitto/ca.crt"
     },
     "nodes": {
         "mqtt_unregistered_node_password": "unregistered"
@@ -81,6 +82,7 @@ pub struct SettingsMqttClient {
     pub mqtt_ip: String,
     pub mqtt_port: String,
     pub mqtt_password: String,
+    pub cafile: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

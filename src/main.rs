@@ -154,7 +154,7 @@ fn main() {
 
     // Start connection to MQTT Broker
     let _mqtt_broker_addr = format!(
-        "tcp://{}:{}",
+        "ssl://{}:{}",
         settings.blackbox_mqtt_client.mqtt_ip, settings.blackbox_mqtt_client.mqtt_port
     );
 
@@ -376,11 +376,15 @@ fn main() {
         }
     });
 
+    let ssl = mqtt::SslOptionsBuilder::new()
+        .trust_store(&settings.blackbox_mqtt_client.cafile)
+        .finalize();
+
     let conn_opts = mqtt::ConnectOptionsBuilder::new()
         .keep_alive_interval(std::time::Duration::from_secs(30))
         .mqtt_version(mqtt::MQTT_VERSION_3_1_1)
         .clean_session(true)
-        //.ssl()
+        .ssl_options(ssl)
         .user_name(BLACKBOX_MQTT_USERNAME)
         .password(settings.blackbox_mqtt_client.mqtt_password.to_owned())
         .will_message(web_interface::wi_announce_blackbox(&cli, false))
