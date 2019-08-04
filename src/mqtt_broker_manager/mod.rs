@@ -30,6 +30,10 @@ persistence false\n
 log_type all\n
 log_dest syslog\n
 allow_anonymous false\n
+cafile /mosquitto/config/ca.crt\n
+certfile /mosquitto/config/server.crt\n
+keyfile /mosquitto/config/server.key\n
+require_certificate false\n
 auth_plugin /mosquitto/config/auth-plug.so\n
 auth_opt_backends postgres\n
 auth_opt_host database_postgres\n
