@@ -21,6 +21,10 @@ const TABLE_BLACKBOX_ELEMENTS: &str = "blackbox_elements";
 const TABLE_MQTT_USERS: &str = "mqtt_users";
 const TABLE_MQTT_ACL: &str = "mqtt_acl";
 
+const MQTT_READ_WRITE: i32 = 3;
+const _MQTT_WRITE_ONLY: i32 = 2;
+const MQTT_READ_ONLY: i32 = 1;
+
 // Used for unregistered node object in <TABLE_BLACKBOX_UNREGISTERED>
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UnregisteredNodeItem {
@@ -391,7 +395,7 @@ pub fn set_web_interface_creds(
                     VALUES ($1, $2, $3);",
             &TABLE_MQTT_ACL
         );
-        match _conn.execute(&query1, &[&INTERFACE_MQTT_USERNAME, &topic_self, &7]) {
+        match _conn.execute(&query1, &[&INTERFACE_MQTT_USERNAME, &topic_self, &MQTT_READ_WRITE]) {
             Ok(_) => {}
             Err(e) => {
                 error!(
@@ -408,7 +412,7 @@ pub fn set_web_interface_creds(
                     VALUES ($1, $2, $3);",
             &TABLE_MQTT_ACL
         );
-        match _conn.execute(&query2, &[&INTERFACE_MQTT_USERNAME, &topic_global, &5]) {
+        match _conn.execute(&query2, &[&INTERFACE_MQTT_USERNAME, &topic_global, &MQTT_READ_ONLY]) {
             Ok(_) => {}
             Err(e) => {
                 error!(
@@ -522,7 +526,7 @@ pub fn set_neutron_communicator_creds(
                     VALUES ($1, $2, $3);",
         &TABLE_MQTT_ACL
     );
-    if let Err(e) = _conn.execute(&query, &[&username, &topic_self, &7]) {
+    if let Err(e) = _conn.execute(&query, &[&username, &topic_self, &MQTT_READ_WRITE]) {
         error!(
             "Could not add an ACL entry for neutron_communicator. Topic: {} Username: {}. Error: {}",
             topic_self, username, e
@@ -540,7 +544,7 @@ pub fn set_neutron_communicator_creds(
                     VALUES ($1, $2, $3);",
         &TABLE_MQTT_ACL
     );
-    if let Err(e) = _conn.execute(&query, &[&username, &topic_global, &5]) {
+    if let Err(e) = _conn.execute(&query, &[&username, &topic_global, &MQTT_READ_ONLY]) {
         error!(
             "Could not add an ACL entry for neutron_communicator. Topic: {} Username: {}. Error: {}",
             topic_global, username, e
@@ -867,7 +871,7 @@ pub fn add_node_to_mqtt_acl(
         &TABLE_MQTT_ACL
     );
 
-    let res = conn.execute(&query, &[&username, &topic_self, &7]);
+    let res = conn.execute(&query, &[&username, &topic_self, &MQTT_READ_WRITE]);
 
     match res {
         Ok(res) => {
@@ -898,7 +902,7 @@ pub fn add_node_to_mqtt_acl(
         &TABLE_MQTT_ACL
     );
 
-    let res = _conn.execute(&query, &[&username, &topic_global, &5]);
+    let res = _conn.execute(&query, &[&username, &topic_global, &MQTT_READ_ONLY]);
 
     match res {
         Ok(res) => {

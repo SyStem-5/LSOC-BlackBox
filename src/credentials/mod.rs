@@ -6,14 +6,12 @@ use rand::seq::SliceRandom;
 
 use data_encoding::BASE64;
 use ring::rand::{SecureRandom, SystemRandom};
-use ring::{digest, pbkdf2};
+use ring::pbkdf2;
 
-const KEY_LEN: usize = 24;
+const KEY_LEN: usize = 64;
 const SALT_LEN: usize = 12;
 const PASS_LEN: usize = 16;
 pub type Credential = [u8; KEY_LEN];
-
-static DIGEST_ALG: &'static digest::Algorithm = &digest::SHA256;
 
 const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ\
 abcdefghijklmnopqrstuvwxyz\
@@ -39,31 +37,30 @@ pub fn generate_mqtt_password() -> String {
 /**
  * Generates a hash (for use in mosquitto broker) from a specified password using random salt.
  * Returns a hashed password.
- * pbkdf2_iterations: 901
+ * pbkdf2_iterations: 100000
  */
 pub fn generate_mqtt_hash(password: &str) -> String {
-    let pbkdf2_iterations: NonZeroU32 = NonZeroU32::new(901).unwrap();
+    let pbkdf2_iterations: NonZeroU32 = NonZeroU32::new(100000).unwrap();
 
     // Generate salt
     let _rng = SystemRandom::new();
     let mut salt = [0u8; SALT_LEN];
     _rng.fill(&mut salt).unwrap();
-    let salt = BASE64.encode(&salt);
 
     // Generate hash
     let mut store: Credential = [0u8; KEY_LEN];
     pbkdf2::derive(
-        DIGEST_ALG,
+        pbkdf2::PBKDF2_HMAC_SHA512,
         pbkdf2_iterations,
-        salt.as_bytes(),
+        &salt,
         password.as_bytes(),
         &mut store,
     );
 
     let hash = format!(
-        "PBKDF2$sha256${}${}${}",
+        "PBKDF2$sha512${}${}${}",
         pbkdf2_iterations,
-        &salt,
+        BASE64.encode(&salt),
         BASE64.encode(&store)
     );
 

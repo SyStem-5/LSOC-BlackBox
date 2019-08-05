@@ -34,16 +34,16 @@ cafile /mosquitto/config/ca.crt\n
 certfile /mosquitto/config/server.crt\n
 keyfile /mosquitto/config/server.key\n
 require_certificate false\n
-auth_plugin /mosquitto/config/auth-plug.so\n
+auth_plugin /mosquitto/config/go-auth.so\n
 auth_opt_backends postgres\n
-auth_opt_host database_postgres\n
-auth_opt_port {}\n
-auth_opt_dbname {}\n
-auth_opt_user {}\n
-auth_opt_pass {}\n
+auth_opt_pg_host database_postgres\n
+auth_opt_pg_port {}\n
+auth_opt_pg_dbname {}\n
+auth_opt_pg_user {}\n
+auth_opt_pg_password {}\n
 auth_opt_userquery SELECT password FROM mqtt_users WHERE username = $1 limit 1\n
-auth_opt_superquery SELECT COALESCE(COUNT(*),0) FROM mqtt_users WHERE username = $1 AND superuser = 1\n
-auth_opt_aclquery SELECT topic FROM mqtt_acl WHERE (username = $1) AND (rw >= $2)",
+auth_opt_superquery SELECT COUNT(*) FROM mqtt_users WHERE username = $1 AND superuser = 1\n
+auth_opt_aclquery SELECT topic FROM mqtt_acl WHERE (username = $1) AND (rw = $2 or rw = 3)",
 settings.db_port, settings.db_name, settings.db_username, settings.db_password);
 
     let mut file = File::create(settings.mosquitto_conf_save_location.to_string()).unwrap();

@@ -10,26 +10,26 @@ path = "src/main.rs"
 
 [dependencies]
 # Encryption, encoding
-ring = "0.14.6"
+ring = "0.16.5"
 data-encoding = "2.1.2"
-rand = "0.6.5"
+rand = "0.7.0"
 
 # Json serializaton/deserialization
-serde = "1.0.89"
-serde_derive = "1.0.89"
-serde_json = "1.0.39"
+serde = "1.0.98"
+serde_derive = "1.0.98"
+serde_json = "1.0.40"
 
 # Enum <-> string
-strum_macros = "0.14.0"
+strum_macros = "0.15.0"
 
 # Mqtt connection
 paho-mqtt = { path = "paho.mqtt.rust" }
 
 # Database dependencies
 postgres = "0.15.2"
-r2d2 = "0.8.3"
+r2d2 = "0.8.5"
 r2d2_postgres = "0.14.0"
 
 # Logging
-log = "0.4.6"
-env_logger = "0.6.1"
+log = "0.4.8"
+env_logger = "0.6.2"
