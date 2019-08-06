@@ -28,7 +28,7 @@ pub fn generate_mosquitto_conf(settings: &SettingsMosquitto, restart_mqtt_docker
     let config_no_ssl = format!("listener 8883\n
 persistence false\n
 log_type all\n
-log_dest syslog\n
+log_dest stderr\n
 allow_anonymous false\n
 cafile /mosquitto/config/ca.crt\n
 certfile /mosquitto/config/server.crt\n
