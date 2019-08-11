@@ -587,7 +587,7 @@ fn main() {
                     println!("\n");
                 }
                 "exit" => {
-                    print!("Are you sure you want to stop BlackBox? [Y/N] ");
+                    print!("Are you sure you want to stop BlackBox? [y/N] ");
                     io::stdout().flush().ok().unwrap();
 
                     let mut conf: String = String::new();
@@ -596,8 +596,8 @@ fn main() {
                         .expect("Error reading confirmation.");
 
                     match conf.chars().next().unwrap() {
-                        'y' => break,
-                        'n' => continue,
+                        'y' | 'Y' => break,
+                        'n' | 'N' => continue,
                         _ => continue,
                     }
                 }
