@@ -28,6 +28,22 @@ pub fn wi_add_to_unregistered_list(cli: &AsyncClient, data: &str) {
 }
 
 /**
+ * Sends data to WebInterface about an unregistered node that went offline.
+ */
+pub fn wi_remove_from_unregistered_list(cli: &AsyncClient, data: &str) {
+    let msg = Message::new(
+        WEBINTERFACE_TOPIC,
+        serde_json::to_string(&new_command(
+            structs::CommandType::RemoveFromUnregisteredList,
+            data,
+        ))
+        .unwrap(),
+        1,
+    );
+    cli.publish(msg);
+}
+
+/**
  * Sends a registered node-element list to WebInterface topic.
  */
 pub fn node_element_response(cli: &AsyncClient, data: Vec<structs::NodeFiltered>) {

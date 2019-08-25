@@ -10,6 +10,7 @@ pub enum CommandType {
     DiscoveryEnable,
     DiscoveryDisable,
     AddToUnregisteredList, // From BlackBox to WebInterface
+    RemoveFromUnregisteredList, // From BlackBox to WebInterface
     AnnounceOnline,
     AnnounceOffline,
     NodeRegistration,

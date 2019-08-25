@@ -196,6 +196,7 @@ fn main() {
                                         topic_split[1],
                                         __pool.clone(),
                                     );
+                                    web_interface::wi_remove_from_unregistered_list(_cli, topic_split[1]);
                                 }
                                 nodes::CommandType::ElementSummary => {
                                     match serde_json::from_str(&cmd.data) {
