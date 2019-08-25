@@ -282,7 +282,8 @@ fn main() {
                                         __pool.clone(),
                                     );
                                     match res {
-                                        Ok(())=> {},
+                                        // Send the confirmation to WI
+                                        Ok(())=> web_interface::wi_node_registered(_cli, &cmd.data),
                                         Err(e) => error!("Could not register node. {}", e)
                                     }
                                 }

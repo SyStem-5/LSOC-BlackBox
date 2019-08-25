@@ -105,3 +105,20 @@ pub fn wi_noify_node_status(cli: &AsyncClient, node_identifier: &str, status: bo
         cli.publish(msg);
     }
 }
+
+/**
+ * Sends data to WebInterface about the newly registered node.
+ * This is just so that the WI knows that this node was successfully registered.
+ */
+pub fn wi_node_registered(cli: &AsyncClient, data: &str) {
+    let msg = Message::new(
+        WEBINTERFACE_TOPIC,
+        serde_json::to_string(&new_command(
+            structs::CommandType::NodeRegistration,
+            data,
+        ))
+        .unwrap(),
+        1,
+    );
+    cli.publish(msg);
+}
