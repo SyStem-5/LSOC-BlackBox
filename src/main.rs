@@ -336,15 +336,7 @@ fn main() {
                                     info!("WebInterface is Online");
 
                                     // If Web interface announces online, we respond by saying BlackBox is online too
-                                    //warn!("SENDING WE'RE ONLINE");
                                     web_interface::wi_announce_blackbox(&_cli, true);
-                                    // let msg = mqtt::Message::new(
-                                    //     mqtt_broker_manager::WEBINTERFACE_TOPIC,
-                                    //     serde_json::to_string(&web_interface::new_command(web_interface::structures::CommandType::AnnounceOnline, "")).unwrap(),
-                                    //     2,
-                                    // );
-                                    // _cli.publish(msg);
-                                    //warn!("SENT WE'RE ONLINE");
                                 }
                                 _ => warn!("Unsupported command received from Web Interface. Cmd: {:?} | Data: {}", cmd.command, cmd.data)
                             }
