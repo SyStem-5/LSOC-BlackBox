@@ -15,8 +15,8 @@ pub enum CommandType {
     AnnounceOffline,
     NodeRegistration,
     UnregisterNode,
-    NodeOnline,
-    NodeOffline,
+    RestartNode,
+    NodeStatus,
     UpdateNodeInfo,
 }
 

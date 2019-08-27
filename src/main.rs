@@ -191,12 +191,14 @@ fn main() {
                             let cmd: nodes::Command = r;
 
                             match cmd.command {
-                                nodes::CommandType::AnnounceOffline => {
-                                    db_manager::remove_from_unregistered_table(
-                                        topic_split[1],
-                                        __pool.clone(),
-                                    );
-                                    web_interface::wi_remove_from_unregistered_list(_cli, topic_split[1]);
+                                nodes::CommandType::AnnounceState => {
+                                    if cmd.data == "false" {
+                                        db_manager::remove_from_unregistered_table(
+                                            topic_split[1],
+                                            __pool.clone(),
+                                        );
+                                        web_interface::wi_remove_from_unregistered_list(_cli, topic_split[1]);
+                                    }
                                 }
                                 nodes::CommandType::ElementSummary => {
                                     match serde_json::from_str(&cmd.data) {
@@ -248,15 +250,18 @@ fn main() {
 
                                     db_manager::edit_element_data_from_element_table(topic_split[1], args[0], args[1], __pool.clone());
                                 }
-                                nodes::CommandType::AnnounceOnline => {
-                                    db_manager::edit_node_state(topic_split[1], true, __pool.clone());
-                                    web_interface::wi_noify_node_status(&_cli, topic_split[1], true);
-                                }
-                                nodes::CommandType::AnnounceOffline => {
-                                    db_manager::edit_node_state(topic_split[1], false, __pool.clone());
-                                    web_interface::wi_noify_node_status(&_cli, topic_split[1], false);
+                                nodes::CommandType::AnnounceState => {
+                                    web_interface::node_status(&_cli, topic_split[1], &cmd.data);
+                                    if cmd.data == "true" {
+                                        db_manager::edit_node_state(topic_split[1], true, __pool.clone());
+                                    } else if cmd.data == "false" {
+                                        db_manager::edit_node_state(topic_split[1], false, __pool.clone());
+                                    }
                                 }
                                 nodes::CommandType::UnregisterNotify => {
+                                    // This is here so we don't get the warning about the unsupported command
+                                }
+                                nodes::CommandType::RestartDevice => {
                                     // This is here so we don't get the warning about the unsupported command
                                 }
                                 _ => warn!("Unsupported command received from registered topic. Cmd: {:?} | Data: {}", cmd.command, cmd.data)
@@ -290,6 +295,12 @@ fn main() {
                                 }
                                 web_interface::structs::CommandType::UnregisterNode => {
                                     nodes::unregister_node(&cmd.data, _cli, __pool.clone());
+                                }
+                                web_interface::structs::CommandType::RestartNode => {
+                                    if let Err(e) = nodes::send_node_command(_cli, nodes::CommandType::RestartDevice, &cmd.data, 2) {
+                                        error!("Could not send node restart command.");
+                                        error!("{}", e);
+                                    }
                                 }
                                 web_interface::structs::CommandType::UpdateNodeInfo => {
                                     match serde_json::from_str(&cmd.data) {

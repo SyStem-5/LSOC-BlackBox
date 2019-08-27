@@ -46,13 +46,13 @@ pub struct Command {
 #[derive(Debug, Serialize, Deserialize, ToString, PartialEq)]
 pub enum CommandType {
     Announce,           // Sent to all unregistered nodes to request element lists
-    AnnounceOffline,    // Received when node is offline
-    AnnounceOnline,     // Received when node is online
+    AnnounceState,      // Received when nodes state changes
     ImplementCreds,     // Sent to node when the creds are being sent
     UnregisterNotify,   // Sent to node when it gets unregistered
     ElementSummary,     // Received from node with the element summary list
     SetElementState,    // Sent to node to set the element state
     UpdateElementState, // Recieved from node
+    RestartDevice,      // Sent to node
 }
 
 pub fn new_command(command: CommandType, data: &str) -> Command {
@@ -208,4 +208,21 @@ pub fn announce_blackbox_online(mqtt_cli: &AsyncClient) {
     mqtt_cli.publish(msg);
 
     wi_announce_blackbox(mqtt_cli, true);
+}
+
+/**
+ * Converts the `Command` struct to a string then publishes it to the nodes topic.
+ * QoS valid values are: 0, 1, 2
+ * If there is a problem parsing the `Command` struct the function returns an error.
+ */
+pub fn send_node_command(mqtt_cli: &AsyncClient, cmd: CommandType, node_id: &str, qos: i32) -> Result<(), Error> {
+    match to_string(&new_command(cmd, "")) {
+        Ok(json) => {
+            let msg = Message::new([REGISTERED_TOPIC, "/", node_id].concat(), json, qos);
+            mqtt_cli.publish(msg);
+        }
+        Err(e) => return Err(e)
+    }
+
+    Ok(())
 }

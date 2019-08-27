@@ -94,31 +94,15 @@ pub fn wi_announce_blackbox(cli: &AsyncClient, status: bool) -> Message {
 }
 
 /**
- * Sent to the WebInterface when a module goes online or offline
+ * Sent to the WebInterface when a module changes states.
  */
-pub fn wi_noify_node_status(cli: &AsyncClient, node_identifier: &str, status: bool) {
-    if status {
-        let msg = Message::new(
-            WEBINTERFACE_TOPIC,
-            serde_json::to_string(&new_command(
-                structs::CommandType::NodeOnline,
-                node_identifier,
-            ))
-            .unwrap(),
-            1,
-        );
-        cli.publish(msg);
-    } else {
-        let msg = Message::new(
-            WEBINTERFACE_TOPIC,
-            serde_json::to_string(&new_command(
-                structs::CommandType::NodeOffline,
-                node_identifier,
-            ))
-            .unwrap(),
-            1,
-        );
-        cli.publish(msg);
+pub fn node_status(cli: &AsyncClient, node_identifier: &str, status: &str) {
+    match serde_json::to_string(&new_command(structs::CommandType::NodeStatus, &[node_identifier, ":", status].concat())) {
+        Ok(json) => {
+            let msg = Message::new(WEBINTERFACE_TOPIC, json, 1);
+            cli.publish(msg);
+        }
+        Err(e) => error!("Could not parse the Command struct to string. {}", e)
     }
 }
 
