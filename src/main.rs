@@ -278,7 +278,7 @@ fn main() {
                                 }
                                 web_interface::structs::CommandType::NodeRegistration => {
                                     let res = nodes::register_node(
-                                        &str::replace(&cmd.data, "'", "\""),
+                                        &cmd.data,
                                         &_cli,
                                         __pool.clone(),
                                     );
@@ -292,7 +292,7 @@ fn main() {
                                     nodes::unregister_node(&cmd.data, _cli, __pool.clone());
                                 }
                                 web_interface::structs::CommandType::UpdateNodeInfo => {
-                                    match serde_json::from_str(&str::replace(&cmd.data, "'", "\"")) {
+                                    match serde_json::from_str(&cmd.data) {
                                         Ok(result) => {
                                             let node: web_interface::structs::NodeInfoEdit = result;
 
