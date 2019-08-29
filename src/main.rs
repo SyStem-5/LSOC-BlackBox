@@ -254,7 +254,8 @@ fn main() {
                                     web_interface::node_status(&_cli, topic_split[1], &cmd.data);
                                     if cmd.data == "true" {
                                         db_manager::edit_node_state(topic_split[1], true, __pool.clone());
-                                    } else if cmd.data == "false" {
+                                    } else {
+                                        // Whatever state the node is in; we don't consider it as being online
                                         db_manager::edit_node_state(topic_split[1], false, __pool.clone());
                                     }
                                 }
