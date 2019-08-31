@@ -290,10 +290,10 @@ fn create_table_mqtt_users(db_conn: Pool<PostgresConnectionManager>) -> bool {
 
     let comm = format!(
         r"CREATE TABLE {} (
-                    id           SERIAL PRIMARY KEY,
+                    id           BIGSERIAL PRIMARY KEY,
                     username     TEXT NOT NULL,
                     password     TEXT NOT NULL,
-                    superuser    INTEGER NOT NULL DEFAULT 0
+                    superuser    BOOLEAN NOT NULL DEFAULT FALSE
                     );",
         TABLE_MQTT_USERS
     );
@@ -319,7 +319,7 @@ fn create_table_mqtt_acl(db_conn: Pool<PostgresConnectionManager>) -> bool {
         r"CREATE TABLE {} (
                         username     TEXT NOT NULL,
                         topic        TEXT NOT NULL,
-                        rw           INTEGER NOT NULL DEFAULT 1
+                        rw           INTEGER NOT NULL
                         );",
         TABLE_MQTT_ACL
     );
@@ -471,7 +471,7 @@ pub fn set_mqtt_bb_creds(
                     VALUES ($1, $2, $3);",
             &TABLE_MQTT_USERS,
         );
-        match _conn.execute(&query2, &[&BLACKBOX_MQTT_USERNAME, &hash, &1]) {
+        match _conn.execute(&query2, &[&BLACKBOX_MQTT_USERNAME, &hash, &true]) {
             Ok(_) => {
                 debug!(
                     "BlackBox MQTT user credentials inserted. Hashed: {} Length: {}",
@@ -777,7 +777,7 @@ pub fn add_node_to_mqtt_users(
         &TABLE_MQTT_USERS
     );
 
-    let res = conn.execute(&query, &[&username, &hash, &0]);
+    let res = conn.execute(&query, &[&username, &hash, &false]);
 
     match res {
         Ok(res) => {

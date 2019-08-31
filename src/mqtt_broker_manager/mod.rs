@@ -42,7 +42,7 @@ auth_opt_pg_dbname {}\n
 auth_opt_pg_user {}\n
 auth_opt_pg_password {}\n
 auth_opt_pg_userquery SELECT password FROM mqtt_users WHERE username = $1 limit 1\n
-auth_opt_pg_superquery SELECT COUNT(*) FROM mqtt_users WHERE username = $1 AND superuser = 1\n
+auth_opt_pg_superquery SELECT COUNT(*) FROM mqtt_users WHERE username = $1 AND superuser = TRUE\n
 auth_opt_pg_aclquery SELECT topic FROM mqtt_acl WHERE (username = $1) AND (rw = $2 or rw = 3)",
 settings.db_port, settings.db_name, settings.db_username, settings.db_password);
 
