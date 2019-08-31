@@ -422,6 +422,18 @@ pub fn set_web_interface_creds(
                 return false;
             }
         }
+
+        // For registering to the NECO topic (write)
+        let query3 = format!(
+            "INSERT INTO {} (username, topic, rw)
+                    VALUES ($1, $2, $3);",
+            &TABLE_MQTT_ACL
+        );
+        if let Err(e) = _conn.execute(&query3, &[&INTERFACE_MQTT_USERNAME, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_WRITE_ONLY]) {
+            error!("Could not add an ACL entry (NECO) for external_interface. {}", e);
+            return false;
+        }
+
     } else {
         warn!(
             "Web interface Credentials: Hash: {} | Username: {}",
@@ -550,6 +562,16 @@ pub fn set_neutron_communicator_creds(
             topic_global, username, e
         );
 
+        return false;
+    }
+
+    // Subscribe write-only to "external_interface"
+    let query = format!("INSERT INTO {} (username, topic, rw) VALUES ($1, $2, $3);", &TABLE_MQTT_ACL);
+    if let Err(e) = _conn.execute(&query, &[&username, &INTERFACE_MQTT_USERNAME, &MQTT_WRITE_ONLY]) {
+        error!(
+            "Could not add an ACL entry for neutron_communicator. Topic: {} Username: {}. Error: {}",
+            INTERFACE_MQTT_USERNAME, username, e
+        );
         return false;
     }
 
