@@ -22,8 +22,8 @@ const TABLE_MQTT_USERS: &str = "mqtt_users";
 const TABLE_MQTT_ACL: &str = "mqtt_acl";
 
 const MQTT_READ_WRITE: i32 = 3;
-const _MQTT_WRITE_ONLY: i32 = 2;
-const MQTT_READ_ONLY: i32 = 1;
+const MQTT_WRITE_ONLY: i32 = 2;
+const MQTT_READ_ONLY: i32 = 4;
 
 // Used for unregistered node object in <TABLE_BLACKBOX_UNREGISTERED>
 #[derive(Debug, Serialize, Deserialize)]
