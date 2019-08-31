@@ -31,10 +31,17 @@ pub enum ElementType {
 // Used to parse the data from WebInterface about a new node for registration
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NewNodeJSON {
-    pub unreged_id: String,
-    pub node_name: String,
-    pub node_category: String,
-    pub elements: Vec<Element>,
+    pub identifier: String,
+    pub name: String,
+    pub category: String,
+    pub elements: Vec<ElementJSON>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ElementJSON {
+    pub address: String,
+    pub name: String,
+    pub element_type: ElementType,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -118,8 +125,8 @@ pub fn register_node(
     // Create a node object
     let new_node = create_node_object(
         &generated_identifier,
-        &node_json_object.node_name,
-        &node_json_object.node_category,
+        &node_json_object.name,
+        &node_json_object.category,
         &to_string(&element_summary_list).unwrap(),
     );
 
@@ -135,13 +142,13 @@ pub fn register_node(
     // Send mqtt credentials to the new node
     let payload = format!("{},{}", generated_identifier, node_mqtt_password);
     let msg = Message::new(
-        UNREGISTERED_TOPIC.to_string() + &"/" + &node_json_object.unreged_id,
+        UNREGISTERED_TOPIC.to_string() + &"/" + &node_json_object.identifier,
         to_string(&new_command(CommandType::ImplementCreds, &payload)).unwrap(),
         1,
     );
     mqtt_cli.publish(msg);
 
-    remove_from_unregistered_table(&node_json_object.unreged_id, db_conn_pool);
+    remove_from_unregistered_table(&node_json_object.identifier, db_conn_pool);
 
     Ok(())
 }
