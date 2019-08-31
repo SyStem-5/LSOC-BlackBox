@@ -2,7 +2,7 @@
 //#![allow(dead_code)]
 
 use crate::credentials::generate_mqtt_hash;
-use crate::mqtt_broker_manager::{QOS, TOPICS, NEUTRONCOMMUNICATOR_TOPIC};
+use crate::mqtt_broker_manager::{QOS, TOPICS, NEUTRONCOMMUNICATOR_TOPIC, REGISTERED_TOPIC};
 use crate::nodes::ElementType;
 use crate::settings::{NeutronCommunicator, SettingsDatabase, SettingsWebInterface};
 use crate::web_interface::structs::{ElementsFiltered, NodeFiltered, NodeInfoEdit};
@@ -23,7 +23,8 @@ const TABLE_MQTT_ACL: &str = "mqtt_acl";
 
 const MQTT_READ_WRITE: i32 = 3;
 const MQTT_WRITE_ONLY: i32 = 2;
-const MQTT_READ_ONLY: i32 = 4;
+const MQTT_SUBSCRIBE_ONLY: i32 = 4;
+const MQTT_READ_ONLY: i32 = 1;
 
 // Used for unregistered node object in <TABLE_BLACKBOX_UNREGISTERED>
 #[derive(Debug, Serialize, Deserialize)]
@@ -380,56 +381,41 @@ pub fn set_web_interface_creds(
     let hash = generate_mqtt_hash(web_interface_mqtt_password);
 
     if using_same_db {
-        // Add external_interface credentials to the users table
-        add_node_to_mqtt_users(db_conn.clone(), &INTERFACE_MQTT_USERNAME, &hash);
 
-        // Add external_interface to the ACL table
-
-        // Subscribe read-only to "registered" and r/w to "external_interface"
-        let topic_self = format!("external_interface/#");
-        let topic_global = format!("registered");
-
-        // For registering to self topic (read/write)
-        let query1 = format!(
-            "INSERT INTO {} (username, topic, rw)
-                    VALUES ($1, $2, $3);",
-            &TABLE_MQTT_ACL
-        );
-        match _conn.execute(&query1, &[&INTERFACE_MQTT_USERNAME, &topic_self, &MQTT_READ_WRITE]) {
-            Ok(_) => {}
-            Err(e) => {
-                error!(
-                    "Could not add an ACL entry (self) for external_interface. {}",
-                    e
-                );
-                return false;
-            }
+        let query;
+        if let Ok(q) = _conn.prepare(&format!("INSERT INTO {} (username, topic, rw) VALUES ($1, $2, $3);", &TABLE_MQTT_ACL)) {
+            query = q;
+        } else {
+            error!("Could not prepare WI ACL query.");
+            return false;
         }
 
-        // For registering to global topic (read)
-        let query2 = format!(
-            "INSERT INTO {} (username, topic, rw)
-                    VALUES ($1, $2, $3);",
-            &TABLE_MQTT_ACL
-        );
-        match _conn.execute(&query2, &[&INTERFACE_MQTT_USERNAME, &topic_global, &MQTT_READ_ONLY]) {
-            Ok(_) => {}
-            Err(e) => {
-                error!(
-                    "Could not add an ACL entry (global) for external_interface. {}",
-                    e
-                );
-                return false;
-            }
+        // Add external_interface credentials to the users table
+        if !add_node_to_mqtt_users(db_conn.clone(), &INTERFACE_MQTT_USERNAME, &hash) {
+            return false;
+        }
+
+        // Subscribe r/w to "external_interface/#"
+        //TODO: Replace this var with a const
+        let topic_self = "external_interface/#";
+
+        if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &topic_self, &MQTT_READ_WRITE]) {
+            error!("Could not add an ACL entry (self) for external_interface. {}", e);
+            return false;
+        }
+
+        // For registering to global topic (read/sub)
+        if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &REGISTERED_TOPIC, &MQTT_READ_ONLY]) {
+            error!("Could not add an ACL entry (global) for external_interface. {}", e);
+            return false;
+        }
+        if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &REGISTERED_TOPIC, &MQTT_SUBSCRIBE_ONLY]) {
+            error!("Could not add an ACL entry (global) for external_interface. {}", e);
+            return false;
         }
 
         // For registering to the NECO topic (write)
-        let query3 = format!(
-            "INSERT INTO {} (username, topic, rw)
-                    VALUES ($1, $2, $3);",
-            &TABLE_MQTT_ACL
-        );
-        if let Err(e) = _conn.execute(&query3, &[&INTERFACE_MQTT_USERNAME, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_WRITE_ONLY]) {
+        if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_WRITE_ONLY]) {
             error!("Could not add an ACL entry (NECO) for external_interface. {}", e);
             return false;
         }
@@ -520,6 +506,14 @@ pub fn set_neutron_communicator_creds(
 ) -> bool {
     let mut _conn = db_conn.get().unwrap();
 
+    let query;
+    if let Ok(q) = _conn.prepare(&format!("INSERT INTO {} (username, topic, rw) VALUES ($1, $2, $3);", TABLE_MQTT_ACL)) {
+        query = q;
+    } else {
+        error!("Could not prepare NECO ACL query.");
+        return false;
+    }
+
     let hash = generate_mqtt_hash(password);
 
     // Add external_interface credentials to the users table
@@ -527,51 +521,26 @@ pub fn set_neutron_communicator_creds(
         return false;
     }
 
-    // Add to ACL table
-
     // Subscribe r/w to "neutron_communicators/[username]"
-    let topic_self = "neutron_communicators/%u";//TOPICS[3];
-
-    // For registering to self topic (read/write)
-    let query = format!(
-        "INSERT INTO {} (username, topic, rw)
-                    VALUES ($1, $2, $3);",
-        &TABLE_MQTT_ACL
-    );
-    if let Err(e) = _conn.execute(&query, &[&username, &topic_self, &MQTT_READ_WRITE]) {
-        error!(
-            "Could not add an ACL entry for neutron_communicator. Topic: {} Username: {}. Error: {}",
-            topic_self, username, e
-        );
-
+    let topic_self = "neutron_communicators/%u";
+    if let Err(e) = query.execute(&[&username, &topic_self, &MQTT_READ_WRITE]) {
+        error!("Could not add an ACL entry for NECO. Topic: {} Error: {}", topic_self, e);
         return false;
     }
 
     // Subscribe r-only to "neutron_communicators"
-    let topic_global = NEUTRONCOMMUNICATOR_TOPIC;
-
-    // For registering to self topic (read/write)
-    let query = format!(
-        "INSERT INTO {} (username, topic, rw)
-                    VALUES ($1, $2, $3);",
-        &TABLE_MQTT_ACL
-    );
-    if let Err(e) = _conn.execute(&query, &[&username, &topic_global, &MQTT_READ_ONLY]) {
-        error!(
-            "Could not add an ACL entry for neutron_communicator. Topic: {} Username: {}. Error: {}",
-            topic_global, username, e
-        );
-
+    if let Err(e) = query.execute(&[&username, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_READ_ONLY]) {
+        error!("Could not add an ACL entry for NECO. Topic: {} Error: {}", NEUTRONCOMMUNICATOR_TOPIC, e);
+        return false;
+    }
+    if let Err(e) = query.execute(&[&username, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_SUBSCRIBE_ONLY]) {
+        error!("Could not add an ACL entry for NECO. Topic: {} Error: {}", NEUTRONCOMMUNICATOR_TOPIC, e);
         return false;
     }
 
     // Subscribe write-only to "external_interface"
-    let query = format!("INSERT INTO {} (username, topic, rw) VALUES ($1, $2, $3);", &TABLE_MQTT_ACL);
-    if let Err(e) = _conn.execute(&query, &[&username, &INTERFACE_MQTT_USERNAME, &MQTT_WRITE_ONLY]) {
-        error!(
-            "Could not add an ACL entry for neutron_communicator. Topic: {} Username: {}. Error: {}",
-            INTERFACE_MQTT_USERNAME, username, e
-        );
+    if let Err(e) = query.execute(&[&username, &INTERFACE_MQTT_USERNAME, &MQTT_WRITE_ONLY]) {
+        error!("Could not add an ACL entry for NECO. Topic: {} Error: {}", INTERFACE_MQTT_USERNAME, e);
         return false;
     }
 
@@ -784,7 +753,7 @@ pub fn remove_from_unregistered_table(
 
 /**
  * Creates a new MQTT user entry for <username> with <hash> and adds to the <TABLE_MQTT_USERS>. \
- * Returns true if a row was successfully inserted.
+ * Returns true if no error was encountered.
  */
 pub fn add_node_to_mqtt_users(
     conn_pool: Pool<PostgresConnectionManager>,
@@ -814,7 +783,6 @@ pub fn add_node_to_mqtt_users(
                     "MQTT user was not inserted. Affected rows: 0. Username: {}",
                     &username
                 );
-                return false;
             }
         }
         Err(e) => {
@@ -924,6 +892,7 @@ pub fn add_node_to_mqtt_acl(
         &TABLE_MQTT_ACL
     );
 
+    let _res = _conn.execute(&query, &[&username, &topic_global, &MQTT_SUBSCRIBE_ONLY]);
     let res = _conn.execute(&query, &[&username, &topic_global, &MQTT_READ_ONLY]);
 
     match res {
