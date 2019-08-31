@@ -99,7 +99,7 @@ pub fn register_node(
             address: elem.address.to_string(),
             name: elem.name.to_string(),
             element_type: elem.element_type.clone(),
-            data: elem.data.to_string(),
+            data: None,
         });
         element_summary_list.push(ElementSummaryListItem {
             address: elem.address.to_string(),

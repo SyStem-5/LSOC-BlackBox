@@ -57,7 +57,7 @@ pub struct Element {
     pub address: String,
     pub name: String,
     pub element_type: ElementType,
-    pub data: String,
+    pub data: Option<String>,
 }
 
 // Used for element_summary in <TABLE_BLACKBOX_NODES> field elements_summary
@@ -1428,7 +1428,7 @@ pub fn add_elements_to_element_table(
                 &element.address,
                 &element.name,
                 &element.element_type.to_string(),
-                &element.data,
+                &element.data.unwrap_or_default(),
             ],
         );
 
@@ -1436,7 +1436,7 @@ pub fn add_elements_to_element_table(
             Ok(res) => {
                 if res > 0 {
                     debug!(
-                        "Added a new element from Node_ID: {} to database table. Element type: {}.",
+                        "Added a new element from Node_ID: {:?} to database table. Element type: {}.",
                         &element.node_id,
                         &element.element_type.to_string()
                     );
@@ -1444,7 +1444,7 @@ pub fn add_elements_to_element_table(
             }
             Err(e) => {
                 error!(
-                    "Could not add element from Node_ID: {} to database table. {}",
+                    "Could not add element from Node_ID: {:?} to database table. {}",
                     &element.node_id, e
                 );
                 return false;
