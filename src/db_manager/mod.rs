@@ -5,7 +5,7 @@ use crate::credentials::generate_mqtt_hash;
 use crate::mqtt_broker_manager::{QOS, TOPICS, NEUTRONCOMMUNICATOR_TOPIC, REGISTERED_TOPIC};
 use crate::nodes::ElementType;
 use crate::settings::{NeutronCommunicator, SettingsDatabase, SettingsWebInterface};
-use crate::web_interface::structs::{ElementsFiltered, NodeFiltered, NodeInfoEdit};
+use crate::external_interface::structs::{ElementsFiltered, NodeFiltered, NodeInfoEdit};
 use crate::{BLACKBOX_MQTT_USERNAME, INTERFACE_MQTT_USERNAME};
 
 use postgres::params::{ConnectParams, Host};
@@ -172,7 +172,7 @@ pub fn init(
                 if !check_mqtt_user_exists(db.clone(), &INTERFACE_MQTT_USERNAME) {
                     info!("Interface MQTT credentials not found. Generating...");
 
-                    if !set_web_interface_creds(
+                    if !set_external_interface_creds(
                         db.clone(),
                         bb_mqtt_same_db,
                         &web_interface.mqtt_password,
@@ -367,11 +367,11 @@ fn check_mqtt_user_exists(db_conn: Pool<PostgresConnectionManager>, username: &s
  * If using_same_db boolean is true, then it gets saved into the shared db(table <MYSQL_MQTT_USERS_TABLE>)
  * between BlackBox and Mosquitto.
  * Displays Hash and WebInterface MQTT username if we're not on the same db.
- * The Web Interface account can read-only 'registered' topic and can r/w 'web_interface/#' topic.
+ * The External Interface account can read-only 'registered' topic and can r/w 'web_interface/#' topic.
  * Returns true if successful.
  * Handles self error messages.
  */
-pub fn set_web_interface_creds(
+pub fn set_external_interface_creds(
     db_conn: Pool<PostgresConnectionManager>,
     using_same_db: bool,
     web_interface_mqtt_password: &str,
@@ -422,7 +422,7 @@ pub fn set_web_interface_creds(
 
     } else {
         warn!(
-            "Web interface Credentials: Hash: {} | Username: {}",
+            "External interface Credentials: Hash: {} | Username: {}",
             hash, INTERFACE_MQTT_USERNAME
         );
     }
@@ -1113,7 +1113,7 @@ pub fn remove_node_from_node_table(
 // }
 
 /**
- * Fetching Node/Element list for sending to Web Interface
+ * Fetching Node/Element list for sending to External Interface
  *
  * Consists of two queries to two tables, then it combines them into one struct and is then returned as an Option
  */

@@ -16,7 +16,7 @@ use crate::db_manager::{
 };
 use crate::db_manager::{Element, ElementSummaryListItem};
 use crate::mqtt_broker_manager::{REGISTERED_TOPIC, UNREGISTERED_TOPIC};
-use crate::web_interface::wi_announce_blackbox;
+use crate::external_interface::announce_blackbox;
 
 // Used when generating a username for nodes
 const REGISTERED_NODE_PREFIX: &str = "reg";
@@ -214,7 +214,7 @@ pub fn announce_blackbox_online(mqtt_cli: &AsyncClient) {
     );
     mqtt_cli.publish(msg);
 
-    wi_announce_blackbox(mqtt_cli, true);
+    announce_blackbox(mqtt_cli, true);
 }
 
 /**

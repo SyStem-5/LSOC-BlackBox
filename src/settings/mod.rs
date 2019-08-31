@@ -247,7 +247,7 @@ fn load_settings() -> Result<Settings, Error> {
         .mqtt_password
         .is_empty()
     {
-        info!("Web Interface is enabled but its password is not set. Generating and saving new password..");
+        info!("External Interface is enabled but its password is not set. Generating and saving new password..");
         let password = generate_mqtt_password();
 
         settings.external_interface_settings.mqtt_password = password.to_string();
@@ -307,7 +307,7 @@ fn save_mqtt_password(password: &str) -> Result<(), Error> {
 }
 
 /**
- * Saves Web Interface mqtt password in the settings file for setting up mqtt access.
+ * Saves External Interface mqtt password in the settings file for setting up mqtt access.
  */
 fn save_web_interface_password(password: &str) -> Result<(), Error> {
     let mut contents = String::new();

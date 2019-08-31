@@ -27,7 +27,7 @@ mod db_manager;
 mod mqtt_broker_manager;
 mod neutron_communicator;
 mod nodes;
-mod web_interface;
+mod external_interface;
 
 mod settings;
 
@@ -42,7 +42,7 @@ const APP_VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 const COMMAND_LIST: [&str; 6] = [
     "regen_mqtt_password",
-    "regen_web_interface_creds",
+    "regen_external_interface_creds",
     "sanitize_db_bb",
     "sanitize_db_mqtt",
     "help",
@@ -197,7 +197,7 @@ fn main() {
                                             topic_split[1],
                                             __pool.clone(),
                                         );
-                                        web_interface::wi_remove_from_unregistered_list(_cli, topic_split[1]);
+                                        external_interface::remove_from_unregistered_list(_cli, topic_split[1]);
                                     }
                                 }
                                 nodes::CommandType::ElementSummary => {
@@ -212,13 +212,13 @@ fn main() {
                                             );
 
                                             if new {
-                                                let urneged_node = serde_json::to_string(&web_interface::structs::UnregisteredNode {
+                                                let urneged_node = serde_json::to_string(&external_interface::structs::UnregisteredNode {
                                                     identifier: topic_split[1].to_string(),
                                                     elements: cmd.data.to_string()
                                                 }).unwrap();
 
-                                                // Send the payload to WebInterface for storage
-                                                web_interface::wi_add_to_unregistered_list(&_cli, &urneged_node);
+                                                // Send the payload to ExternalInterface for storage
+                                                external_interface::add_to_unregistered_list(&_cli, &urneged_node);
                                             }
                                         }
                                         Err(e) => warn!(
@@ -251,7 +251,7 @@ fn main() {
                                     db_manager::edit_element_data_from_element_table(topic_split[1], args[0], args[1], __pool.clone());
                                 }
                                 nodes::CommandType::AnnounceState => {
-                                    web_interface::node_status(&_cli, topic_split[1], &cmd.data);
+                                    external_interface::node_status(&_cli, topic_split[1], &cmd.data);
                                     if cmd.data == "true" {
                                         db_manager::edit_node_state(topic_split[1], true, __pool.clone());
                                     } else {
@@ -273,16 +273,16 @@ fn main() {
                 } else if topic_split[0] == INTERFACE_MQTT_USERNAME {
                     match serde_json::from_str(&payload_str) {
                         Ok(result) => {
-                            let cmd: web_interface::structs::Command = result;
+                            let cmd: external_interface::structs::Command = result;
 
                             match cmd.command {
-                                web_interface::structs::CommandType::NodeElementList => {
+                                external_interface::structs::CommandType::NodeElementList => {
                                     match db_manager::get_node_element_list(__pool.clone()) {
-                                        Some(data) => web_interface::node_element_response(_cli, data),
+                                        Some(data) => external_interface::node_element_response(_cli, data),
                                         None => {}
                                     }
                                 }
-                                web_interface::structs::CommandType::NodeRegistration => {
+                                external_interface::structs::CommandType::NodeRegistration => {
                                     let res = nodes::register_node(
                                         &cmd.data,
                                         &_cli,
@@ -290,30 +290,30 @@ fn main() {
                                     );
                                     match res {
                                         // Send the confirmation to WI
-                                        Ok(())=> web_interface::wi_node_registered(_cli, &cmd.data),
+                                        Ok(())=> external_interface::node_registered(_cli, &cmd.data),
                                         Err(e) => error!("Could not register node. {}", e)
                                     }
                                 }
-                                web_interface::structs::CommandType::UnregisterNode => {
+                                external_interface::structs::CommandType::UnregisterNode => {
                                     nodes::unregister_node(&cmd.data, _cli, __pool.clone());
                                 }
-                                web_interface::structs::CommandType::RestartNode => {
+                                external_interface::structs::CommandType::RestartNode => {
                                     if let Err(e) = nodes::send_node_command(_cli, nodes::CommandType::RestartDevice, &cmd.data, 2) {
                                         error!("Could not send node restart command.");
                                         error!("{}", e);
                                     }
                                 }
-                                web_interface::structs::CommandType::UpdateNodeInfo => {
+                                external_interface::structs::CommandType::UpdateNodeInfo => {
                                     match serde_json::from_str(&cmd.data) {
                                         Ok(result) => {
-                                            let node: web_interface::structs::NodeInfoEdit = result;
+                                            let node: external_interface::structs::NodeInfoEdit = result;
 
                                             db_manager::edit_node_info(node, __pool.clone());
                                         }
                                         Err(e) => error!("Could not parse Node info update payload. {}", e)
                                     }
                                 }
-                                web_interface::structs::CommandType::DiscoveryEnable => {
+                                external_interface::structs::CommandType::DiscoveryEnable => {
                                     if !discovery_mode {
                                         discovery_mode =
                                         db_manager::set_discovery_mode(
@@ -327,7 +327,7 @@ fn main() {
                                         nodes::announce_discovery(&_cli);
                                     }
                                 }
-                                web_interface::structs::CommandType::DiscoveryDisable => {
+                                external_interface::structs::CommandType::DiscoveryDisable => {
                                     db_manager::set_discovery_mode(
                                         false,
                                         "",
@@ -336,8 +336,8 @@ fn main() {
                                     );
                                     discovery_mode = false;
                                 }
-                                web_interface::structs::CommandType::AnnounceOffline => {
-                                    info!("WebInterface is Offline");
+                                external_interface::structs::CommandType::AnnounceOffline => {
+                                    info!("ExternalInterface is Offline");
                                     db_manager::set_discovery_mode(
                                         false,
                                         "",
@@ -346,16 +346,16 @@ fn main() {
                                     );
                                     discovery_mode = false;
                                 }
-                                web_interface::structs::CommandType::AnnounceOnline => {
-                                    info!("WebInterface is Online");
+                                external_interface::structs::CommandType::AnnounceOnline => {
+                                    info!("ExternalInterface is Online");
 
-                                    // If Web interface announces online, we respond by saying BlackBox is online too
-                                    web_interface::wi_announce_blackbox(&_cli, true);
+                                    // If External interface announces online, we respond by saying BlackBox is online too
+                                    external_interface::announce_blackbox(&_cli, true);
                                 }
-                                _ => warn!("Unsupported command received from Web Interface. Cmd: {:?} | Data: {}", cmd.command, cmd.data)
+                                _ => warn!("Unsupported command received from External Interface. Cmd: {:?} | Data: {}", cmd.command, cmd.data)
                             }
                         },
-                        Err(e) => warn!("Could not parse Web Interface command. {} | {}", e, &payload_str)
+                        Err(e) => warn!("Could not parse External Interface command. {} | {}", e, &payload_str)
                     }
                 } else if topic_split[0] == NEUTRONCOMMUNICATOR_TOPIC {
                     match serde_json::from_str(&payload_str) {
@@ -393,7 +393,7 @@ fn main() {
         .ssl_options(ssl)
         .user_name(BLACKBOX_MQTT_USERNAME)
         .password(settings.blackbox_mqtt_client.mqtt_password.to_owned())
-        .will_message(web_interface::wi_announce_blackbox(&cli, false))
+        .will_message(external_interface::announce_blackbox(&cli, false))
         .finalize();
 
     // Make the connection to the broker
@@ -425,7 +425,7 @@ fn main() {
                 //     nodes::announce_registered(&cli);
                 // }
                 // "set_elem_1" => {
-                //     // Simulated input from web_interface
+                //     // Simulated input from external_interface
                 //     let payload = format!("{},{}", "0xtest_address", "1");
 
                 //     let msg = mqtt::Message::new(
@@ -440,7 +440,7 @@ fn main() {
                 //     let _tok = cli.publish(msg);
                 // }
                 // "set_elem_0" => {
-                //     // Simulated input from web_interface
+                //     // Simulated input from external_interface
                 //     let payload = format!("{},{}", "0xtest_address", "0");
 
                 //     let msg = mqtt::Message::new(
@@ -505,9 +505,9 @@ fn main() {
                         _ => continue,
                     }
                 }
-                "regen_web_interface_creds" => {
-                    warn!("Web Interface credentials are going to be generated from the password specified in the settings.");
-                    print!("Are you sure you want to regenerate Web Interface credentials for MQTT? [y]es | [n]o : ");
+                "regen_external_interface_creds" => {
+                    warn!("External Interface credentials are going to be generated from the password specified in the settings.");
+                    print!("Are you sure you want to regenerate External Interface credentials for MQTT? [y]es | [n]o : ");
                     io::stdout().flush().ok().unwrap();
 
                     let mut conf: String = String::new();
@@ -526,7 +526,7 @@ fn main() {
                                 INTERFACE_MQTT_USERNAME,
                             );
 
-                            match db_manager::set_web_interface_creds(
+                            match db_manager::set_external_interface_creds(
                                 _pool.clone(),
                                 bb_mqtt_using_same_db(
                                     &settings.mosquitto_broker_config,
@@ -534,7 +534,7 @@ fn main() {
                                 ),
                                 &settings.external_interface_settings.mqtt_password,
                             ) {
-                                true => warn!("Web Interface credentials reset. Please restart BlackBox for changes to take effect."),
+                                true => warn!("External Interface credentials reset. Please restart BlackBox for changes to take effect."),
                                 false => {}
                             }
                         }
@@ -616,7 +616,7 @@ fn main() {
         }
     }
 
-    cli.publish(web_interface::wi_announce_blackbox(&cli, false));
+    cli.publish(external_interface::announce_blackbox(&cli, false));
 
     cli.disconnect(Some(
         mqtt::DisconnectOptionsBuilder::new()

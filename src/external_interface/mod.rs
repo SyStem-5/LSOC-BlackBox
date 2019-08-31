@@ -12,9 +12,9 @@ fn new_command(command: structs::CommandType, data: &str) -> structs::Command {
 }
 
 /**
- * Sends data to WebInterface about an unregistered node from unregistered announces when discovery is enabled.
+ * Sends data to ExtInterface about an unregistered node from unregistered announces when discovery is enabled.
  */
-pub fn wi_add_to_unregistered_list(cli: &AsyncClient, data: &str) {
+pub fn add_to_unregistered_list(cli: &AsyncClient, data: &str) {
     let msg = Message::new(
         WEBINTERFACE_TOPIC,
         serde_json::to_string(&new_command(
@@ -28,9 +28,9 @@ pub fn wi_add_to_unregistered_list(cli: &AsyncClient, data: &str) {
 }
 
 /**
- * Sends data to WebInterface about an unregistered node that went offline.
+ * Sends data to ExtInterface about an unregistered node that went offline.
  */
-pub fn wi_remove_from_unregistered_list(cli: &AsyncClient, data: &str) {
+pub fn remove_from_unregistered_list(cli: &AsyncClient, data: &str) {
     let msg = Message::new(
         WEBINTERFACE_TOPIC,
         serde_json::to_string(&new_command(
@@ -44,7 +44,7 @@ pub fn wi_remove_from_unregistered_list(cli: &AsyncClient, data: &str) {
 }
 
 /**
- * Sends a registered node-element list to WebInterface topic.
+ * Sends a registered node-element list to ExtInterface topic.
  */
 pub fn node_element_response(cli: &AsyncClient, data: Vec<structs::NodeFiltered>) {
     match serde_json::to_string(&data) {
@@ -69,10 +69,10 @@ pub fn node_element_response(cli: &AsyncClient, data: Vec<structs::NodeFiltered>
 }
 
 /**
- * Send a 'announce' command to notify WebInterface that BlackBox is online if ```status``` parameter is true.
+ * Send a 'announce' command to notify ExtInterface that BlackBox is online if ```status``` parameter is true.
  * If its false then we just return a Message mqtt struct with the command payload, used for setting the MQTT last will for BlackBox.
  */
-pub fn wi_announce_blackbox(cli: &AsyncClient, status: bool) -> Message {
+pub fn announce_blackbox(cli: &AsyncClient, status: bool) -> Message {
     if status {
         let msg = Message::new(
             WEBINTERFACE_TOPIC,
@@ -94,7 +94,7 @@ pub fn wi_announce_blackbox(cli: &AsyncClient, status: bool) -> Message {
 }
 
 /**
- * Sent to the WebInterface when a module changes states.
+ * Sent to the ExtInterface when a module changes states.
  */
 pub fn node_status(cli: &AsyncClient, node_identifier: &str, status: &str) {
     match serde_json::to_string(&new_command(structs::CommandType::NodeStatus, &[node_identifier, ":", status].concat())) {
@@ -107,10 +107,10 @@ pub fn node_status(cli: &AsyncClient, node_identifier: &str, status: &str) {
 }
 
 /**
- * Sends data to WebInterface about the newly registered node.
+ * Sends data to ExtInterface about the newly registered node.
  * This is just so that the WI knows that this node was successfully registered.
  */
-pub fn wi_node_registered(cli: &AsyncClient, data: &str) {
+pub fn node_registered(cli: &AsyncClient, data: &str) {
     let msg = Message::new(
         WEBINTERFACE_TOPIC,
         serde_json::to_string(&new_command(
