@@ -363,6 +363,8 @@ fn check_mqtt_user_exists(db_conn: Pool<PostgresConnectionManager>, username: &s
 }
 
 /**
+ * TODO: Update the comment
+ *
  * Generates hash from provided password.
  * If using_same_db boolean is true, then it gets saved into the shared db(table <MYSQL_MQTT_USERS_TABLE>)
  * between BlackBox and Mosquitto.
@@ -416,6 +418,11 @@ pub fn set_external_interface_creds(
 
         // For registering to the NECO topic (write)
         if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_WRITE_ONLY]) {
+            error!("Could not add an ACL entry (NECO) for external_interface. {}", e);
+            return false;
+        }
+        // For registering to the NECO ids topic (write)
+        if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &[NEUTRONCOMMUNICATOR_TOPIC, "/#"].concat(), &MQTT_WRITE_ONLY]) {
             error!("Could not add an ACL entry (NECO) for external_interface. {}", e);
             return false;
         }
