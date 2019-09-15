@@ -104,13 +104,11 @@ pub fn on_mqtt_connect_success(cli: &AsyncClient, _msgid: u16) {
 
     info!("Subscribing to: {}", TOPICS[0]);
     info!("Subscribing to: {}", TOPICS[2]);
-    info!("Subscribing to: {}", TOPICS[3]);
 
     announce_blackbox_online(cli);
 
     cli.subscribe(TOPICS[0], QOS[0]);
     cli.subscribe(TOPICS[2], QOS[2]);
-    cli.subscribe(TOPICS[3], QOS[3]);
 }
 
 /**
