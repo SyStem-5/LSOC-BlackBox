@@ -33,6 +33,13 @@ pub struct UnregisteredNodeItem {
     pub elements_summary: String,
 }
 
+// Used for the element_summary field in <TABLE_BLACKBOX_UNREGISTERED>
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ElementSummaryListItem {
+    pub address: String,
+    pub element_type: ElementType,
+}
+
 // Used for objects in <TABLE_BLACKBOX_NODES>
 #[derive(Debug, Clone)]
 pub struct Node {
@@ -40,7 +47,6 @@ pub struct Node {
     pub identifier: String,
     pub name: String,
     pub category: String,
-    pub elements_summary: String,
     pub state: bool,
 }
 
@@ -61,13 +67,6 @@ pub struct Element {
     pub data: Option<String>,
 }
 
-// Used for element_summary in <TABLE_BLACKBOX_NODES> field elements_summary
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ElementSummaryListItem {
-    pub address: String,
-    pub element_type: ElementType,
-}
-
 /**
  * Creates a new Node object and returns it.
  */
@@ -75,13 +74,11 @@ pub fn create_node_object(
     identifier: &str,
     name: &str,
     category: &str,
-    elements_summary: &str,
 ) -> Node {
     Node {
         id: 0,
         identifier: identifier.to_string(),
         name: name.to_string(),
-        elements_summary: elements_summary.to_string(),
         category: category.to_string(),
         state: false,
     }
@@ -238,7 +235,6 @@ fn create_table_nodes(db_conn: Pool<PostgresConnectionManager>) -> bool {
                         identifier           TEXT NOT NULL,
                         name                 TEXT NOT NULL,
                         category             TEXT NOT NULL,
-                        elements_summary     TEXT NOT NULL,
                         state                BOOLEAN NOT NULL
                         );",
         TABLE_BLACKBOX_NODES
@@ -971,7 +967,7 @@ pub fn add_node_to_node_table(conn_pool: Pool<PostgresConnectionManager>, node: 
     let conn = conn_pool.get().unwrap();
 
     let query = format!(
-        "INSERT INTO {} (identifier, name, category, elements_summary, state)
+        "INSERT INTO {} (identifier, name, category, state)
                 VALUES ($1, $2, $3, $4, $5);",
         &TABLE_BLACKBOX_NODES
     );
@@ -982,7 +978,6 @@ pub fn add_node_to_node_table(conn_pool: Pool<PostgresConnectionManager>, node: 
             &node.identifier,
             &node.name,
             &node.category,
-            &node.elements_summary,
             &node.state,
         ],
     );

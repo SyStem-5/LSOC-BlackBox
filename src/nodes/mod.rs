@@ -14,7 +14,7 @@ use crate::db_manager::{
 use crate::db_manager::{
     add_node_to_mqtt_acl, add_node_to_mqtt_users, remove_from_mqtt_users, remove_node_from_mqtt_acl,
 };
-use crate::db_manager::{Element, ElementSummaryListItem};
+use crate::db_manager::Element;
 use crate::mqtt_broker_manager::{REGISTERED_TOPIC, UNREGISTERED_TOPIC};
 use crate::external_interface::announce_blackbox;
 
@@ -90,9 +90,6 @@ pub fn register_node(
     // Used for saving an Element list so we can add each to db
     let mut element_list: Vec<Element> = Vec::new();
 
-    // Used for saving a summary of elements available to save to node_table
-    let mut element_summary_list: Vec<ElementSummaryListItem> = Vec::new();
-
     // Generating username(identifier), MQTT password and hash
     let generated_identifier;
     let node_mqtt_password = generate_mqtt_password();
@@ -100,7 +97,7 @@ pub fn register_node(
 
     generated_identifier = format!("{}{}", REGISTERED_NODE_PREFIX, generate_username());
 
-    // Iterate over elements and populate the element_list and element_summary_list
+    // Iterate over elements and populate the element_list
     for elem in node_json_object.elements {
         element_list.push(Element {
             node_id: generated_identifier.to_string(),
@@ -108,10 +105,6 @@ pub fn register_node(
             name: elem.name.to_string(),
             element_type: elem.element_type.clone(),
             data: None,
-        });
-        element_summary_list.push(ElementSummaryListItem {
-            address: elem.address.to_string(),
-            element_type: elem.element_type.clone(),
         });
     }
 
@@ -128,7 +121,6 @@ pub fn register_node(
         &generated_identifier,
         &node_json_object.name,
         &node_json_object.category,
-        &to_string(&element_summary_list).unwrap(),
     );
 
     add_elements_to_element_table(db_conn_pool.clone(), element_list);
