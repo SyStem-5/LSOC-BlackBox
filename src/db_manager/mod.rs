@@ -1136,7 +1136,7 @@ pub fn get_node_element_list(
     let query_result_nodes = conn.query(&query_nodes, &[]);
 
     let query_elements = format!(
-        "SELECT node_id, address, name, element_type FROM {};",
+        "SELECT node_id, address, name, element_type, data FROM {};",
         TABLE_BLACKBOX_ELEMENTS
     );
     let query_result_elements = conn.query(&query_elements, &[]);
@@ -1150,6 +1150,7 @@ pub fn get_node_element_list(
                     address: row.get("address"),
                     name: row.get("name"),
                     element_type: row.get("element_type"),
+                    data: row.get("data")
                 })
             }
         }

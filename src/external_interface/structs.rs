@@ -50,6 +50,7 @@ pub struct ElementsFiltered {
     pub address: String,
     pub name: String,
     pub element_type: String,
+    pub data: String
 }
 
 // Used for NodeElementList response structuring
