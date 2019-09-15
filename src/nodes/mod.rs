@@ -26,6 +26,7 @@ const REGISTERED_NODE_PREFIX: &str = "reg";
 pub enum ElementType {
     BasicSwitch,
     DHT11,
+    Thermostat
 }
 
 // Used to parse the data from WebInterface about a new node for registration
