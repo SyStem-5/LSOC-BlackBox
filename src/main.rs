@@ -357,26 +357,6 @@ fn main() {
                         },
                         Err(e) => warn!("Could not parse External Interface command. {} | {}", e, &payload_str)
                     }
-                } else if topic_split[0] == NEUTRONCOMMUNICATOR_TOPIC {
-                    match serde_json::from_str(&payload_str) {
-                        Ok(result) => {
-                            let cmd: neutron_communicator::structs::Command = result;
-
-                            match cmd.command {
-                                neutron_communicator::structs::CommandType::StateUpdate => {
-                                    warn!("NECO Status Update | Username: {} Data: {}", topic_split[1], cmd.data);
-                                }
-                                neutron_communicator::structs::CommandType::Changelogs => {
-                                    warn!("Changelogs: {}", cmd.data);
-                                }
-                                _ => {
-                                    dbg!("This is going to be removed once we are v1.0");
-                                    warn!("Unsupported command received from NECO topic. Cmd: {:?} | Data: {}", cmd.command, cmd.data)
-                                }
-                            }
-                        }
-                        Err(e) => warn!("Could not parse NECO command. {}", e)
-                    }
                 }
             }
         }
