@@ -25,13 +25,14 @@ pub enum CommandType {
 pub struct NodeInfoEdit {
     pub identifier: String,
     pub name: String,
-    pub category: String,
     pub elements: Vec<ElementInfoEdit>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ElementInfoEdit {
     pub address: String,
     pub name: String,
+    pub category: String,
+    pub zone: String,
 }
 
 // Used for NodeElementList response structuring
@@ -39,7 +40,6 @@ pub struct ElementInfoEdit {
 pub struct NodeFiltered {
     pub identifier: String,
     pub name: String,
-    pub category: String,
     pub state: bool,
     pub elements: Vec<ElementsFiltered>,
 }
@@ -50,6 +50,8 @@ pub struct ElementsFiltered {
     pub address: String,
     pub name: String,
     pub element_type: String,
+    pub category: String,
+    pub zone: String,
     pub data: String
 }
 

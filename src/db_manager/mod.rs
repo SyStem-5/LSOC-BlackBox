@@ -46,7 +46,6 @@ pub struct Node {
     pub id: i64,
     pub identifier: String,
     pub name: String,
-    pub category: String,
     pub state: bool,
 }
 
@@ -64,6 +63,8 @@ pub struct Element {
     pub address: String,
     pub name: String,
     pub element_type: ElementType,
+    pub category: String,
+    pub zone: String,
     pub data: Option<String>,
 }
 
@@ -73,13 +74,11 @@ pub struct Element {
 pub fn create_node_object(
     identifier: &str,
     name: &str,
-    category: &str,
 ) -> Node {
     Node {
         id: 0,
         identifier: identifier.to_string(),
         name: name.to_string(),
-        category: category.to_string(),
         state: false,
     }
 }
@@ -234,7 +233,6 @@ fn create_table_nodes(db_conn: Pool<PostgresConnectionManager>) -> bool {
                         id                   SERIAL PRIMARY KEY,
                         identifier           TEXT NOT NULL,
                         name                 TEXT NOT NULL,
-                        category             TEXT NOT NULL,
                         state                BOOLEAN NOT NULL
                         );",
         TABLE_BLACKBOX_NODES
@@ -263,6 +261,8 @@ fn create_table_elements(db_conn: Pool<PostgresConnectionManager>) -> bool {
                     address         TEXT NOT NULL,
                     name            TEXT NOT NULL,
                     element_type    TEXT NOT NULL,
+                    category        TEXT NOT NULL,
+                    zone            TEXT NOT NULL,
                     data            TEXT NOT NULL
                     );",
         TABLE_BLACKBOX_ELEMENTS
@@ -967,8 +967,8 @@ pub fn add_node_to_node_table(conn_pool: Pool<PostgresConnectionManager>, node: 
     let conn = conn_pool.get().unwrap();
 
     let query = format!(
-        "INSERT INTO {} (identifier, name, category, state)
-                VALUES ($1, $2, $3, $4, $5);",
+        "INSERT INTO {} (identifier, name, state)
+                VALUES ($1, $2, $3);",
         &TABLE_BLACKBOX_NODES
     );
 
@@ -977,7 +977,6 @@ pub fn add_node_to_node_table(conn_pool: Pool<PostgresConnectionManager>, node: 
         &[
             &node.identifier,
             &node.name,
-            &node.category,
             &node.state,
         ],
     );
@@ -1125,13 +1124,13 @@ pub fn get_node_element_list(
     let conn = conn_pool.get().unwrap();
 
     let query_nodes = format!(
-        "SELECT identifier, name, category, state FROM {};",
+        "SELECT identifier, name, state FROM {};",
         TABLE_BLACKBOX_NODES
     );
     let query_result_nodes = conn.query(&query_nodes, &[]);
 
     let query_elements = format!(
-        "SELECT node_id, address, name, element_type, data FROM {};",
+        "SELECT node_id, address, name, element_type, category, zone, data FROM {};",
         TABLE_BLACKBOX_ELEMENTS
     );
     let query_result_elements = conn.query(&query_elements, &[]);
@@ -1145,6 +1144,8 @@ pub fn get_node_element_list(
                     address: row.get("address"),
                     name: row.get("name"),
                     element_type: row.get("element_type"),
+                    category: row.get("category"),
+                    zone: row.get("zone"),
                     data: row.get("data")
                 })
             }
@@ -1168,7 +1169,6 @@ pub fn get_node_element_list(
                 node_filtered_list.push(NodeFiltered {
                     identifier: node_id,
                     name: row_node.get("name"),
-                    category: row_node.get("category"),
                     state: row_node.get("state"),
                     elements: _elements,
                 })
@@ -1321,17 +1321,17 @@ pub fn edit_node_info(node: NodeInfoEdit, conn_pool: Pool<PostgresConnectionMana
     let mut successful = true;
 
     let query = format!(
-        "UPDATE {} SET NAME = $1, CATEGORY = $2 WHERE identifier = $3;",
+        "UPDATE {} SET NAME = $1 WHERE identifier = $2;",
         TABLE_BLACKBOX_NODES
     );
-    let res = conn.execute(&query, &[&node.name, &node.category, &node.identifier]);
+    let res = conn.execute(&query, &[&node.name, &node.identifier]);
 
     for element in node.elements {
         let query = format!(
-            "UPDATE {} SET NAME = $1 WHERE (node_id = $2 AND address = $3);",
+            "UPDATE {} SET NAME = $1, CATEGORY = $2, ZONE = $3 WHERE (node_id = $4 AND address = $5);",
             TABLE_BLACKBOX_ELEMENTS
         );
-        let res = conn.execute(&query, &[&element.name, &node.identifier, &element.address]);
+        let res = conn.execute(&query, &[&element.name, &element.category, &element.zone, &node.identifier, &element.address]);
 
         match res {
             Ok(res) => {
@@ -1388,8 +1388,8 @@ pub fn add_elements_to_element_table(
 
     for element in elements {
         let query = format!(
-            "INSERT INTO {} (node_id, address, name, element_type, data)
-                    VALUES ($1, $2, $3, $4, $5);",
+            "INSERT INTO {} (node_id, address, name, element_type, category, zone, data)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7);",
             &TABLE_BLACKBOX_ELEMENTS
         );
 
@@ -1400,6 +1400,8 @@ pub fn add_elements_to_element_table(
                 &element.address,
                 &element.name,
                 &element.element_type.to_string(),
+                &element.category,
+                &element.zone,
                 &element.data.unwrap_or_default(),
             ],
         );

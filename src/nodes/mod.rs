@@ -34,7 +34,6 @@ pub enum ElementType {
 pub struct NewNodeJSON {
     pub identifier: String,
     pub name: String,
-    pub category: String,
     pub elements: Vec<ElementJSON>,
 }
 
@@ -43,6 +42,8 @@ pub struct ElementJSON {
     pub address: String,
     pub name: String,
     pub element_type: ElementType,
+    pub category: String,
+    pub zone: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -104,6 +105,8 @@ pub fn register_node(
             address: elem.address.to_string(),
             name: elem.name.to_string(),
             element_type: elem.element_type.clone(),
+            category: elem.category,
+            zone: elem.zone,
             data: None,
         });
     }
@@ -120,7 +123,6 @@ pub fn register_node(
     let new_node = create_node_object(
         &generated_identifier,
         &node_json_object.name,
-        &node_json_object.category,
     );
 
     add_elements_to_element_table(db_conn_pool.clone(), element_list);
