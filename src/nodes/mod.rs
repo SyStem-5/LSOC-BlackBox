@@ -107,7 +107,9 @@ pub fn register_node(
             element_type: elem.element_type,
             category: elem.category,
             zone: elem.zone,
-            data: None,
+            data: Some(
+                default_element_data(&elem.element_type)
+            ),
         });
     }
 
@@ -227,4 +229,18 @@ pub fn send_node_command(mqtt_cli: &AsyncClient, cmd: CommandType, node_id: &str
     }
 
     Ok(())
+}
+
+/**
+ * Returns the default data string for database entry.
+ * This is useful becase the ExternalInterface can have some data to base the UI from rather than none.
+ */
+fn default_element_data(element_type: &ElementType) -> String {
+    let d = match element_type {
+        ElementType::BasicSwitch => "false",
+        ElementType::DHT11 => "{\"temp\": \"0\", \"hum\": \"0\"}",
+        ElementType::Thermostat => "{\"state\": \"0\"}"
+    };
+
+    String::from(d)
 }
