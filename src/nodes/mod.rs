@@ -22,7 +22,7 @@ use crate::external_interface::announce_blackbox;
 const REGISTERED_NODE_PREFIX: &str = "reg";
 
 //Supported element types
-#[derive(Clone, ToString, Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ToString, Clone, Copy)]
 pub enum ElementType {
     BasicSwitch,
     DHT11,
@@ -104,7 +104,7 @@ pub fn register_node(
             node_id: generated_identifier.to_string(),
             address: elem.address.to_string(),
             name: elem.name.to_string(),
-            element_type: elem.element_type.clone(),
+            element_type: elem.element_type,
             category: elem.category,
             zone: elem.zone,
             data: None,
