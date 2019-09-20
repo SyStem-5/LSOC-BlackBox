@@ -25,7 +25,7 @@ use paho_mqtt as mqtt;
 mod credentials;
 mod db_manager;
 mod mqtt_broker_manager;
-mod neutron_communicator;
+
 mod nodes;
 mod external_interface;
 
@@ -34,11 +34,11 @@ mod settings;
 use mqtt_broker_manager::{
     on_mqtt_connect_failure, on_mqtt_connect_success, on_mqtt_connection_lost,
 };
-use mqtt_broker_manager::{REGISTERED_TOPIC, UNREGISTERED_TOPIC, NEUTRONCOMMUNICATOR_TOPIC};
+use mqtt_broker_manager::{REGISTERED_TOPIC, UNREGISTERED_TOPIC};
 
 use std::{env, io, io::Write};
 
-const APP_VERSION: &'static str = env!("CARGO_PKG_VERSION");
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const COMMAND_LIST: [&str; 6] = [
     "regen_mqtt_password",
@@ -203,7 +203,7 @@ fn main() {
                                 nodes::CommandType::ElementSummary => {
                                     match serde_json::from_str(&cmd.data) {
                                         Ok(result) => {
-                                            let _elem_list: Vec<db_manager::ElementSummaryListItem> = result;
+                                            let _elem_list: Vec<nodes::ElementSummaryListItem> = result;
 
                                             let new = db_manager::add_to_unregistered_table(
                                                 topic_split[1],
@@ -298,9 +298,8 @@ fn main() {
                                     nodes::unregister_node(&cmd.data, _cli, __pool.clone());
                                 }
                                 external_interface::structs::CommandType::RestartNode => {
-                                    if let Err(e) = nodes::send_node_command(_cli, nodes::CommandType::RestartDevice, &cmd.data, 2) {
-                                        error!("Could not send node restart command.");
-                                        error!("{}", e);
+                                    if let Err(e) = nodes::restart_node(_cli, &cmd.data) {
+                                        error!("Could not send node restart command. {}", e);
                                     }
                                 }
                                 external_interface::structs::CommandType::UpdateNodeInfo => {
@@ -434,30 +433,30 @@ fn main() {
                 //     );
                 //     let _tok = cli.publish(msg);
                 // }
-                "test_startupdateinstall" => {
-                    let msg = mqtt::Message::new(
-                        NEUTRONCOMMUNICATOR_TOPIC,
-                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structs::CommandType::StartUpdateDownloadAndInstall, "")).unwrap(),
-                        1,
-                    );
-                    cli.publish(msg);
-                }
-                "test_refreshum" => {
-                    let msg = mqtt::Message::new(
-                        NEUTRONCOMMUNICATOR_TOPIC,
-                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structs::CommandType::RefreshUpdateManifest, "")).unwrap(),
-                        1,
-                    );
-                    cli.publish(msg);
-                }
-                "test_changelogs" => {
-                    let msg = mqtt::Message::new(
-                        NEUTRONCOMMUNICATOR_TOPIC,
-                        serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structs::CommandType::Changelogs, "")).unwrap(),
-                        1,
-                    );
-                    cli.publish(msg);
-                }
+                // "test_startupdateinstall" => {
+                //     let msg = mqtt::Message::new(
+                //         NEUTRONCOMMUNICATOR_TOPIC,
+                //         serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structs::CommandType::StartUpdateDownloadAndInstall, "")).unwrap(),
+                //         1,
+                //     );
+                //     cli.publish(msg);
+                // }
+                // "test_refreshum" => {
+                //     let msg = mqtt::Message::new(
+                //         NEUTRONCOMMUNICATOR_TOPIC,
+                //         serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structs::CommandType::RefreshUpdateManifest, "")).unwrap(),
+                //         1,
+                //     );
+                //     cli.publish(msg);
+                // }
+                // "test_changelogs" => {
+                //     let msg = mqtt::Message::new(
+                //         NEUTRONCOMMUNICATOR_TOPIC,
+                //         serde_json::to_string(&neutron_communicator::new_command(neutron_communicator::structs::CommandType::Changelogs, "")).unwrap(),
+                //         1,
+                //     );
+                //     cli.publish(msg);
+                // }
                 "regen_mqtt_password" => {
                     warn!("BlackBox credentials are going to be generated from a password specified in the settings.");
                     print!("Are you sure you want to regenerate BlackBox Mosquitto Credentials? [y]es | [n]o : ");

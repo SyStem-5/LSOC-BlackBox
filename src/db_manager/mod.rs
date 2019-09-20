@@ -3,7 +3,7 @@
 
 use crate::credentials::generate_mqtt_hash;
 use crate::mqtt_broker_manager::{QOS, TOPICS, NEUTRONCOMMUNICATOR_TOPIC, REGISTERED_TOPIC};
-use crate::nodes::ElementType;
+use crate::nodes::{Node, Element};
 use crate::settings::{NeutronCommunicator, SettingsDatabase, SettingsWebInterface};
 use crate::external_interface::structs::{ElementsFiltered, NodeFiltered, NodeInfoEdit};
 use crate::{BLACKBOX_MQTT_USERNAME, INTERFACE_MQTT_USERNAME};
@@ -26,62 +26,6 @@ const MQTT_WRITE_ONLY: i32 = 2;
 const MQTT_SUBSCRIBE_ONLY: i32 = 4;
 const MQTT_READ_ONLY: i32 = 1;
 
-// Used for unregistered node object in <TABLE_BLACKBOX_UNREGISTERED>
-#[derive(Debug, Serialize, Deserialize)]
-pub struct UnregisteredNodeItem {
-    pub client_id: String,
-    pub elements_summary: String,
-}
-
-// Used for the element_summary field in <TABLE_BLACKBOX_UNREGISTERED>
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ElementSummaryListItem {
-    pub address: String,
-    pub element_type: ElementType,
-}
-
-// Used for objects in <TABLE_BLACKBOX_NODES>
-#[derive(Debug, Clone)]
-pub struct Node {
-    pub id: i64,
-    pub identifier: String,
-    pub name: String,
-    pub state: bool,
-}
-
-// Not sure if this is going to be useful
-// #[derive(Debug)]
-// pub struct NodeState {
-//     pub identifier: String,
-//     pub state: bool,
-// }
-
-// Used in <TABLE_BLACKBOX_ELEMENTS>
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Element {
-    pub node_id: String,
-    pub address: String,
-    pub name: String,
-    pub element_type: ElementType,
-    pub category: String,
-    pub zone: String,
-    pub data: Option<String>,
-}
-
-/**
- * Creates a new Node object and returns it.
- */
-pub fn create_node_object(
-    identifier: &str,
-    name: &str,
-) -> Node {
-    Node {
-        id: 0,
-        identifier: identifier.to_string(),
-        name: name.to_string(),
-        state: false,
-    }
-}
 
 /**
  * Checks if the db contains necessary tables for operation.
@@ -257,11 +201,10 @@ fn create_table_elements(db_conn: Pool<PostgresConnectionManager>) -> bool {
 
     let comm = format!(
         r"CREATE TABLE {} (
-                    node_id         TEXT NOT NULL,
+                    node_identifier         TEXT NOT NULL,
                     address         TEXT NOT NULL,
                     name            TEXT NOT NULL,
                     element_type    TEXT NOT NULL,
-                    category        TEXT NOT NULL,
                     zone            TEXT NOT NULL,
                     data            TEXT NOT NULL
                     );",
@@ -1130,7 +1073,7 @@ pub fn get_node_element_list(
     let query_result_nodes = conn.query(&query_nodes, &[]);
 
     let query_elements = format!(
-        "SELECT node_id, address, name, element_type, category, zone, data FROM {};",
+        "SELECT node_identifier, address, name, element_type, zone, data FROM {};",
         TABLE_BLACKBOX_ELEMENTS
     );
     let query_result_elements = conn.query(&query_elements, &[]);
@@ -1140,11 +1083,10 @@ pub fn get_node_element_list(
         Ok(rows) => {
             for row in rows.iter() {
                 element_filtered_list.push(ElementsFiltered {
-                    node_identifier: row.get("node_id"),
+                    node_identifier: row.get("node_identifier"),
                     address: row.get("address"),
                     name: row.get("name"),
                     element_type: row.get("element_type"),
-                    category: row.get("category"),
                     zone: row.get("zone"),
                     data: row.get("data")
                 })
@@ -1157,17 +1099,17 @@ pub fn get_node_element_list(
     match query_result_nodes {
         Ok(rows_nodes) => {
             for row_node in rows_nodes.iter() {
-                let node_id: String = row_node.get("identifier");
+                let node_identifier: String = row_node.get("identifier");
                 let mut _elements: Vec<ElementsFiltered> = Vec::new();
 
                 for elem in element_filtered_list.clone().iter() {
-                    if elem.node_identifier == node_id {
+                    if elem.node_identifier == node_identifier {
                         _elements.push(elem.clone());
                     }
                 }
 
                 node_filtered_list.push(NodeFiltered {
-                    identifier: node_id,
+                    identifier: node_identifier,
                     name: row_node.get("name"),
                     state: row_node.get("state"),
                     elements: _elements,
@@ -1310,8 +1252,6 @@ pub fn edit_node_state_global(new_state: bool, conn_pool: Pool<PostgresConnectio
 /**
  * Using the provided information from ```node``` parameter
  *
- * Updates the name and category column of row matching node identifier in the <TABLE_BLACKBOX_NODES>.
- *
  * Updates the name column of the row matching the node identifier and address in the <TABLE_BLACKBOX_ELEMENTS>.
  *
  * Returns true if successful.
@@ -1328,10 +1268,10 @@ pub fn edit_node_info(node: NodeInfoEdit, conn_pool: Pool<PostgresConnectionMana
 
     for element in node.elements {
         let query = format!(
-            "UPDATE {} SET NAME = $1, CATEGORY = $2, ZONE = $3 WHERE (node_id = $4 AND address = $5);",
+            "UPDATE {} SET NAME = $1, ZONE = $2 WHERE (node_identifier = $3 AND address = $4);",
             TABLE_BLACKBOX_ELEMENTS
         );
-        let res = conn.execute(&query, &[&element.name, &element.category, &element.zone, &node.identifier, &element.address]);
+        let res = conn.execute(&query, &[&element.name, &element.zone, &node.identifier, &element.address]);
 
         match res {
             Ok(res) => {
@@ -1388,21 +1328,20 @@ pub fn add_elements_to_element_table(
 
     for element in elements {
         let query = format!(
-            "INSERT INTO {} (node_id, address, name, element_type, category, zone, data)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7);",
+            "INSERT INTO {} (node_identifier, address, name, element_type, zone, data)
+                    VALUES ($1, $2, $3, $4, $5, $6);",
             &TABLE_BLACKBOX_ELEMENTS
         );
 
         let res = conn.execute(
             &query,
             &[
-                &element.node_id,
+                &element.node_identifier,
                 &element.address,
                 &element.name,
                 &element.element_type.to_string(),
-                &element.category,
                 &element.zone,
-                &element.data.unwrap_or_default(),
+                &element.data,
             ],
         );
 
@@ -1411,7 +1350,7 @@ pub fn add_elements_to_element_table(
                 if res > 0 {
                     debug!(
                         "Added a new element from Node_ID: {:?} to database table. Element type: {}.",
-                        &element.node_id,
+                        &element.node_identifier,
                         &element.element_type.to_string()
                     );
                 }
@@ -1419,7 +1358,7 @@ pub fn add_elements_to_element_table(
             Err(e) => {
                 error!(
                     "Could not add element from Node_ID: {:?} to database table. {}",
-                    &element.node_id, e
+                    &element.node_identifier, e
                 );
                 return false;
             }
@@ -1438,7 +1377,7 @@ pub fn remove_elements_from_elements_table(
     let conn = conn_pool.get().unwrap();
 
     let query = format!(
-        "DELETE FROM {} WHERE NODE_ID = $1;",
+        "DELETE FROM {} WHERE node_identifier = $1;",
         TABLE_BLACKBOX_ELEMENTS
     );
 
@@ -1471,7 +1410,7 @@ pub fn edit_element_data_from_element_table(
     let conn = conn_pool.get().unwrap();
 
     let query = format!(
-        "UPDATE {} SET DATA = $1 WHERE NODE_ID = $2 AND ADDRESS = $3;",
+        "UPDATE {} SET DATA = $1 WHERE node_identifier = $2 AND ADDRESS = $3;",
         TABLE_BLACKBOX_ELEMENTS
     );
 

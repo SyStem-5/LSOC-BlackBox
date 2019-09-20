@@ -31,7 +31,6 @@ pub struct NodeInfoEdit {
 pub struct ElementInfoEdit {
     pub address: String,
     pub name: String,
-    pub category: String,
     pub zone: String,
 }
 
@@ -50,7 +49,6 @@ pub struct ElementsFiltered {
     pub address: String,
     pub name: String,
     pub element_type: String,
-    pub category: String,
     pub zone: String,
     pub data: String
 }

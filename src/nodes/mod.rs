@@ -1,75 +1,34 @@
-use crate::mqtt::{AsyncClient, Message};
+use std::io::{Error, ErrorKind};
 
-use serde_json::{from_str, to_string, Error};
+use paho_mqtt::AsyncClient;
+
+use serde_json::from_str;
 
 use r2d2::Pool;
 use r2d2_postgres::PostgresConnectionManager;
 
 use crate::credentials::{generate_mqtt_hash, generate_mqtt_password, generate_username};
 use crate::db_manager::{
-    add_elements_to_element_table, add_node_to_node_table, create_node_object,
+    add_elements_to_element_table, add_node_to_node_table,
     remove_elements_from_elements_table, remove_from_unregistered_table,
     remove_node_from_node_table,
 };
 use crate::db_manager::{
     add_node_to_mqtt_acl, add_node_to_mqtt_users, remove_from_mqtt_users, remove_node_from_mqtt_acl,
 };
-use crate::db_manager::Element;
-use crate::mqtt_broker_manager::{REGISTERED_TOPIC, UNREGISTERED_TOPIC};
-use crate::external_interface::announce_blackbox;
+
+mod commands;
+pub use commands::{announce_blackbox_online, restart_node, announce_discovery};
+
+mod structs;
+pub use structs::{Node, Element};
+
+// THESE ARE TEMPORARY -- REMOVE WHEN FIXING THE MESS THAT IS THE MAIN FUNCTION
+pub use structs::{Command, CommandType, ElementSummaryListItem};
 
 // Used when generating a username for nodes
 const REGISTERED_NODE_PREFIX: &str = "reg";
 
-//Supported element types
-#[derive(Debug, Serialize, Deserialize, ToString, Clone, Copy)]
-pub enum ElementType {
-    BasicSwitch,
-    DHT11,
-    Thermostat
-}
-
-// Used to parse the data from WebInterface about a new node for registration
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NewNodeJSON {
-    pub identifier: String,
-    pub name: String,
-    pub elements: Vec<ElementJSON>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ElementJSON {
-    pub address: String,
-    pub name: String,
-    pub element_type: ElementType,
-    pub category: String,
-    pub zone: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Command {
-    pub command: CommandType,
-    pub data: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, ToString, PartialEq)]
-pub enum CommandType {
-    Announce,           // Sent to all unregistered nodes to request element lists
-    AnnounceState,      // Received when nodes state changes
-    ImplementCreds,     // Sent to node when the creds are being sent
-    UnregisterNotify,   // Sent to node when it gets unregistered
-    ElementSummary,     // Received from node with the element summary list
-    SetElementState,    // Sent to node to set the element state
-    UpdateElementState, // Recieved from node
-    RestartDevice,      // Sent to node
-}
-
-pub fn new_command(command: CommandType, data: &str) -> Command {
-    Command {
-        command,
-        data: data.to_string(),
-    }
-}
 
 /**
  * Registers node - adds needed info to db, sends the creds to the unregistered node and removes from unregistered node list.
@@ -85,33 +44,66 @@ pub fn register_node(
     mqtt_cli: &AsyncClient,
     db_conn_pool: Pool<PostgresConnectionManager>,
 ) -> Result<(), Error> {
-    //
-    let node_json_object: NewNodeJSON = from_str(node_data)?;
+    // Used to parse the data from WebInterface about a new node for registration
+    #[derive(Debug, Serialize, Deserialize)]
+    struct NewNodeJSON {
+        pub identifier: String,
+        pub name: String,
+        pub elements: Vec<ElementJSON>,
+    }
+
+    #[derive(Debug, Serialize, Deserialize)]
+    struct ElementJSON {
+        pub address: String,
+        pub name: String,
+        pub element_type: structs::ElementType,
+        pub zone: String,
+    }
+
+    let node_json_object: NewNodeJSON;
+    match from_str(node_data) {
+        Ok(json) => node_json_object = json,
+        Err(e) => {
+            let msg = format!("Could not serialize unregistered node data. {}", e);
+
+            return Err(Error::new(ErrorKind::InvalidData, msg));
+        }
+    }
 
     // Used for saving an Element list so we can add each to db
-    let mut element_list: Vec<Element> = Vec::new();
+    let mut element_list: Vec<structs::Element> = Vec::new();
 
     // Generating username(identifier), MQTT password and hash
-    let generated_identifier;
     let node_mqtt_password = generate_mqtt_password();
     let mqtt_password_hash = generate_mqtt_hash(&node_mqtt_password);
 
-    generated_identifier = format!("{}{}", REGISTERED_NODE_PREFIX, generate_username());
+    let generated_identifier = [REGISTERED_NODE_PREFIX, &generate_username()].concat();
+
+    if commands::send_credentials(mqtt_cli, &node_json_object.identifier, &generated_identifier, &node_mqtt_password).is_err() {
+        return Err(Error::new(ErrorKind::Other, "Could not send credentials to the newly generated node."));
+    }
 
     // Iterate over elements and populate the element_list
     for elem in node_json_object.elements {
-        element_list.push(Element {
-            node_id: generated_identifier.to_string(),
-            address: elem.address.to_string(),
-            name: elem.name.to_string(),
+        element_list.push(structs::Element {
+            node_identifier: generated_identifier.to_owned(),
+            address: elem.address,
+            name: elem.name,
             element_type: elem.element_type,
-            category: elem.category,
             zone: elem.zone,
-            data: Some(
-                default_element_data(&elem.element_type)
-            ),
+            data: default_element_data(elem.element_type),
         });
     }
+
+    add_elements_to_element_table(db_conn_pool.clone(), element_list);
+
+    // Create a node object
+    let new_node = structs::Node::new(
+        &generated_identifier,
+        &node_json_object.name,
+    );
+
+    add_node_to_node_table(db_conn_pool.clone(), new_node);
 
     // Add node credentials to mqtt users list and to access control list
     add_node_to_mqtt_users(
@@ -121,29 +113,10 @@ pub fn register_node(
     );
     add_node_to_mqtt_acl(db_conn_pool.clone(), false, &generated_identifier);
 
-    // Create a node object
-    let new_node = create_node_object(
-        &generated_identifier,
-        &node_json_object.name,
-    );
-
-    add_elements_to_element_table(db_conn_pool.clone(), element_list);
-
-    add_node_to_node_table(db_conn_pool.clone(), new_node);
-
     info!(
         "Successfully registered a new node. ID: {}",
         &generated_identifier
     );
-
-    // Send mqtt credentials to the new node
-    let payload = format!("{},{}", generated_identifier, node_mqtt_password);
-    let msg = Message::new(
-        UNREGISTERED_TOPIC.to_string() + &"/" + &node_json_object.identifier,
-        to_string(&new_command(CommandType::ImplementCreds, &payload)).unwrap(),
-        1,
-    );
-    mqtt_cli.publish(msg);
 
     remove_from_unregistered_table(&node_json_object.identifier, db_conn_pool);
 
@@ -159,87 +132,43 @@ pub fn unregister_node(
     db_conn_pool: Pool<PostgresConnectionManager>,
 ) -> bool {
     // Send mqtt message to node
-    let msg = Message::new(
-        REGISTERED_TOPIC.to_string() + &"/" + &node_identifier,
-        to_string(&new_command(CommandType::UnregisterNotify, "")).unwrap(),
-        2,
-    );
-    mqtt_cli.publish(msg);
-
-    let mqtt_users = remove_from_mqtt_users(db_conn_pool.clone(), &node_identifier);
-
-    let mqtt_acl = remove_node_from_mqtt_acl(db_conn_pool.clone(), &node_identifier);
-
-    let blackbox_elements =
-        remove_elements_from_elements_table(db_conn_pool.clone(), &node_identifier);
-
-    let blackbox_nodes = remove_node_from_node_table(db_conn_pool.clone(), &node_identifier);
-
-    if mqtt_users && mqtt_acl && blackbox_elements && blackbox_nodes {
-        info!("Node unregistered successfully. ID: {}", &node_identifier);
-        return true;
-    } else {
-        error!("Failed to unregister node. ID: {}", &node_identifier);
-        return false;
-    }
-}
-
-/**
- * Publishes an 'Announce' message to unregistered topic.
- */
-pub fn announce_discovery(mqtt_cli: &AsyncClient) {
-    let msg = Message::new(
-        UNREGISTERED_TOPIC,
-        to_string(&new_command(CommandType::Announce, "")).unwrap(),
-        1,
-    );
-    mqtt_cli.publish(msg);
-
-    // if let Err(e) = tok.wait() {
-    //     error!("Error sending announce message: {:?}", e);
-    // }
-}
-
-/**
- * Publishes an 'Announce' message to registered and WebInterface topics.
- */
-pub fn announce_blackbox_online(mqtt_cli: &AsyncClient) {
-    let msg = Message::new(
-        REGISTERED_TOPIC,
-        to_string(&new_command(CommandType::Announce, "")).unwrap(),
-        1,
-    );
-    mqtt_cli.publish(msg);
-
-    announce_blackbox(mqtt_cli, true);
-}
-
-/**
- * Converts the `Command` struct to a string then publishes it to the nodes topic.
- * QoS valid values are: 0, 1, 2
- * If there is a problem parsing the `Command` struct the function returns an error.
- */
-pub fn send_node_command(mqtt_cli: &AsyncClient, cmd: CommandType, node_id: &str, qos: i32) -> Result<(), Error> {
-    match to_string(&new_command(cmd, "")) {
-        Ok(json) => {
-            let msg = Message::new([REGISTERED_TOPIC, "/", node_id].concat(), json, qos);
-            mqtt_cli.publish(msg);
-        }
-        Err(e) => return Err(e)
+    if let Err(e) = commands::unregistered_notify(mqtt_cli, node_identifier) {
+        error!("Could not send UnregisterNotify command to node. {}", e);
+        return false
     }
 
-    Ok(())
+    if !remove_from_mqtt_users(db_conn_pool.clone(), &node_identifier) {
+        error!("Could not remove node from mqtt users table.");
+        return false
+    }
+
+    if !remove_node_from_mqtt_acl(db_conn_pool.clone(), &node_identifier) {
+        error!("Could not remove node from mqtt acl table.");
+        return false
+    }
+
+    if !remove_elements_from_elements_table(db_conn_pool.clone(), &node_identifier) {
+        error!("Could not remove element from the elements table.");
+        return false
+    }
+
+    if !remove_node_from_node_table(db_conn_pool.clone(), &node_identifier) {
+        error!("Could not remove node from node table.");
+        return false
+    }
+
+    true
 }
 
 /**
  * Returns the default data string for database entry.
  * This is useful becase the ExternalInterface can have some data to base the UI from rather than none.
  */
-fn default_element_data(element_type: &ElementType) -> String {
+fn default_element_data(element_type: structs::ElementType) -> String {
     let d = match element_type {
-        ElementType::BasicSwitch => "false",
-        ElementType::DHT11 => "{\"temp\": \"0\", \"hum\": \"0\"}",
-        ElementType::Thermostat => "{\"state\": \"0\"}"
+        structs::ElementType::BasicSwitch => "false",
+        structs::ElementType::DHT11 => "{\"temp\": \"0\", \"hum\": \"0\"}",
+        structs::ElementType::Thermostat => "{\"state\": \"0\"}"
     };
 
     String::from(d)

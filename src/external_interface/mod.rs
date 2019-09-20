@@ -69,28 +69,28 @@ pub fn node_element_response(cli: &AsyncClient, data: Vec<structs::NodeFiltered>
 }
 
 /**
- * Send a 'announce' command to notify ExtInterface that BlackBox is online if ```status``` parameter is true.
+ * Send a 'announce' command to notify ExtInterface that BlackBox is online if `status` parameter is true.
  * If its false then we just return a Message mqtt struct with the command payload, used for setting the MQTT last will for BlackBox.
  */
 pub fn announce_blackbox(cli: &AsyncClient, status: bool) -> Message {
-    if status {
-        let msg = Message::new(
-            WEBINTERFACE_TOPIC,
-            serde_json::to_string(&new_command(structs::CommandType::AnnounceOnline, ""))
-                .unwrap(),
-            2,
-        );
-        cli.publish(msg);
+    let cmd = if status {
+        structs::CommandType::AnnounceOnline
     } else {
-        return Message::new(
-            WEBINTERFACE_TOPIC,
-            serde_json::to_string(&new_command(structs::CommandType::AnnounceOffline, ""))
-                .unwrap(),
-            2,
-        );
+        structs::CommandType::AnnounceOffline
+    };
+
+    let msg = Message::new(
+        WEBINTERFACE_TOPIC,
+        serde_json::to_string(&new_command(cmd, ""))
+            .unwrap(),
+        2,
+    );
+
+    if status {
+        cli.publish(msg.clone());
     }
 
-    return Message::new("", "", 1);
+    msg
 }
 
 /**
