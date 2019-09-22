@@ -168,7 +168,7 @@ fn default_element_data(element_type: structs::ElementType) -> String {
     let d = match element_type {
         structs::ElementType::BasicSwitch => "false",
         structs::ElementType::DHT11 => "{\"temp\": \"0\", \"hum\": \"0\"}",
-        structs::ElementType::Thermostat => "{\"state\": \"0\"}"
+        structs::ElementType::Thermostat => "0"
     };
 
     String::from(d)
