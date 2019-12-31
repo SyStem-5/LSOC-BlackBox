@@ -97,7 +97,17 @@ pub fn announce_blackbox(cli: &AsyncClient, status: bool) -> Message {
  * Sent to the ExtInterface when a module changes states.
  */
 pub fn node_status(cli: &AsyncClient, node_identifier: &str, status: &str) {
-    match serde_json::to_string(&new_command(structs::CommandType::NodeStatus, &[node_identifier, ":", status].concat())) {
+    match serde_json::to_string(&new_command(structs::CommandType::NodeStatus, &[node_identifier, "::", status].concat())) {
+        Ok(json) => {
+            let msg = Message::new(WEBINTERFACE_TOPIC, json, 1);
+            cli.publish(msg);
+        }
+        Err(e) => error!("Could not parse the Command struct to string. {}", e)
+    }
+}
+
+pub fn element_state(cli: &AsyncClient, node_identifier: &str, data: &str) {
+    match serde_json::to_string(&new_command(structs::CommandType::UpdateElementState, &[node_identifier, "::", data].concat())) {
         Ok(json) => {
             let msg = Message::new(WEBINTERFACE_TOPIC, json, 1);
             cli.publish(msg);

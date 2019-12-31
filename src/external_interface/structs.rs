@@ -18,6 +18,10 @@ pub enum CommandType {
     RestartNode,
     NodeStatus,
     UpdateNodeInfo,
+    SetElementState,
+    UpdateElementState,
+    SystemShutdown,
+    SystemReboot,
 }
 
 // Used for parsing request from WebInterface

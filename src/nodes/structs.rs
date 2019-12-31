@@ -19,10 +19,10 @@ pub enum CommandType {
 }
 
 impl Command {
-    pub fn new(command: CommandType, data: &str) -> Self{
+    pub fn new(command: CommandType, data: &str) -> Self {
         Command {
             command,
-            data: data.to_owned()
+            data: data.to_owned(),
         }
     }
 
@@ -33,7 +33,10 @@ impl Command {
     pub fn to_string(&self) -> Option<String> {
         match to_string(self) {
             Ok(res) => return Some(res),
-            Err(e) => error!("Could not convert command to string. Command: {:?} | Err: {}", self.command, e),
+            Err(e) => error!(
+                "Could not convert command to string. Command: {:?} | Err: {}",
+                self.command, e
+            ),
         }
         None
     }
@@ -63,7 +66,7 @@ pub struct Element {
 pub enum ElementType {
     BasicSwitch,
     DHT11,
-    Thermostat
+    Thermostat,
 }
 
 impl Node {
@@ -71,7 +74,7 @@ impl Node {
         Node {
             identifier: identifier.to_owned(),
             name: name.to_owned(),
-            state: false
+            state: false,
         }
     }
 }
@@ -88,4 +91,12 @@ pub struct UnregisteredNodeItem {
 pub struct ElementSummaryListItem {
     pub address: String,
     pub element_type: ElementType,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ElementSet {
+    pub node_identifier: String,
+    pub element_identifier: String,
+    pub element_type: ElementType,
+    pub data: String,
 }

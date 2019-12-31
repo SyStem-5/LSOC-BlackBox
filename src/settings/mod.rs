@@ -122,16 +122,16 @@ pub fn init() -> Result<Settings, ()> {
     if !Path::new(SETTINGS_FILE_LOCATION).exists() {
         error!("Settings file not found.");
         info!("Run 'sudo black_box commands' to get the command for generating a settings file.");
-        return Err(());
+        Err(())
     } else {
         match load_settings() {
             Ok(settings) => {
                 info!("Settings loaded successfully.");
-                return Ok(settings);
+                Ok(settings)
             }
             Err(e) => {
                 error!("Failed to load settings file. {}", e);
-                return Err(());
+                Err(())
             }
         }
     }
@@ -301,7 +301,7 @@ fn save_mqtt_password(password: &str) -> Result<(), Error> {
     settings.blackbox_mqtt_client.mqtt_password = String::from(password);
 
     let mut file = File::create(SETTINGS_FILE_LOCATION)?;
-    file.write_all(&format!("{}", to_string(&settings)?).as_bytes())?;
+    file.write_all(to_string(&settings)?.as_bytes())?;
 
     Ok(())
 }
@@ -321,7 +321,7 @@ fn save_web_interface_password(password: &str) -> Result<(), Error> {
     settings.external_interface_settings.mqtt_password = String::from(password);
 
     let mut file = File::create(SETTINGS_FILE_LOCATION)?;
-    file.write_all(&format!("{}", to_string(&settings)?).as_bytes())?;
+    file.write_all(to_string(&settings)?.as_bytes())?;
 
     Ok(())
 }
@@ -329,7 +329,7 @@ fn save_web_interface_password(password: &str) -> Result<(), Error> {
 /**
  * Saves Neutron mqtt account data to the settings file.
  */
-fn save_neutron_accounts(neutron_communicators: Vec<NeutronCommunicator>) -> Result<(), Error> {
+pub fn save_neutron_accounts(mut neutron_communicators: Vec<NeutronCommunicator>) -> Result<(), Error> {
     let mut contents = String::new();
 
     let mut file = File::open(SETTINGS_FILE_LOCATION)?;
@@ -338,10 +338,10 @@ fn save_neutron_accounts(neutron_communicators: Vec<NeutronCommunicator>) -> Res
 
     let mut settings: Settings = from_str(&contents)?;
 
-    settings.neutron_communicators = neutron_communicators;
+    settings.neutron_communicators.append(&mut neutron_communicators);
 
     let mut file = File::create(SETTINGS_FILE_LOCATION)?;
-    file.write_all(&format!("{}", to_string(&settings)?).as_bytes())?;
+    file.write_all(to_string(&settings)?.as_bytes())?;
 
     Ok(())
 }

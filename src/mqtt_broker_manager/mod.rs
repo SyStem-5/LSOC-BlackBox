@@ -47,7 +47,7 @@ auth_opt_pg_aclquery SELECT topic FROM mqtt_acl WHERE (username = $1) AND (rw = 
 settings.db_port, settings.db_name, settings.db_username, settings.db_password);
 
     let mut file = File::create(settings.mosquitto_conf_save_location.to_string()).unwrap();
-    file.write_all(&format!("{}", config_no_ssl).as_bytes())
+    file.write_all(config_no_ssl.as_bytes())
         .unwrap();
 
     if restart_mqtt_docker_container {

@@ -31,7 +31,7 @@ pub fn generate_mqtt_password() -> String {
         .map(|_| Some(*CHARSET.choose(&mut rng)? as char))
         .collect();
 
-    return password.unwrap();
+    password.unwrap()
 }
 
 /**
@@ -40,7 +40,7 @@ pub fn generate_mqtt_password() -> String {
  * pbkdf2_iterations: 100000
  */
 pub fn generate_mqtt_hash(password: &str) -> String {
-    let pbkdf2_iterations: NonZeroU32 = NonZeroU32::new(100000).unwrap();
+    let pbkdf2_iterations: NonZeroU32 = NonZeroU32::new(100_000).unwrap();
 
     // Generate salt
     let _rng = SystemRandom::new();
@@ -64,7 +64,7 @@ pub fn generate_mqtt_hash(password: &str) -> String {
         BASE64.encode(&store)
     );
 
-    return hash;
+    hash
 }
 
 /**
@@ -85,7 +85,7 @@ pub fn generate_username() -> String {
  */
 pub fn get_db_password_from_file() -> Result<String, std::io::Error> {
     match read_to_string(DB_PASSWORD_FILE_LOCATION) {
-        Ok(content) => return Ok(content.trim().to_string()),
-        Err(e) => return Err(e),
+        Ok(content) => Ok(content.trim().to_string()),
+        Err(e) => Err(e),
     }
 }

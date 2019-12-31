@@ -5,12 +5,18 @@ use paho_mqtt::AsyncClient;
 use serde_json::from_str;
 
 use r2d2::Pool;
-use r2d2_postgres::PostgresConnectionManager;
+use r2d2_postgres::{PostgresConnectionManager, postgres::NoTls};
 
-use crate::credentials::{generate_mqtt_hash, generate_mqtt_password, generate_username};
+use crate::credentials::{
+    generate_mqtt_hash,
+    generate_mqtt_password,
+    generate_username
+};
 use crate::db_manager::{
-    add_elements_to_element_table, add_node_to_node_table,
-    remove_elements_from_elements_table, remove_from_unregistered_table,
+    add_elements_to_element_table,
+    add_node_to_node_table,
+    remove_elements_from_elements_table,
+    remove_from_unregistered_table,
     remove_node_from_node_table,
 };
 use crate::db_manager::{
@@ -18,7 +24,13 @@ use crate::db_manager::{
 };
 
 mod commands;
-pub use commands::{announce_blackbox_online, restart_node, announce_discovery};
+pub use commands::{
+    unregistered_notify,
+    announce_blackbox_online,
+    restart_node,
+    announce_discovery,
+    element_set
+};
 
 mod structs;
 pub use structs::{Node, Element};
@@ -42,7 +54,7 @@ const REGISTERED_NODE_PREFIX: &str = "reg";
 pub fn register_node(
     node_data: &str,
     mqtt_cli: &AsyncClient,
-    db_conn_pool: Pool<PostgresConnectionManager>,
+    db_conn_pool: Pool<PostgresConnectionManager<NoTls>>,
 ) -> Result<(), Error> {
     // Used to parse the data from WebInterface about a new node for registration
     #[derive(Debug, Serialize, Deserialize)]
@@ -124,18 +136,12 @@ pub fn register_node(
 }
 
 /**
- * Unregisteres node with node_identifier and sends a command to the node, notifying it.
+ * Removes the node information from the database - preventing it from accessing/using it.
  */
 pub fn unregister_node(
     node_identifier: &str,
-    mqtt_cli: &AsyncClient,
-    db_conn_pool: Pool<PostgresConnectionManager>,
+    db_conn_pool: Pool<PostgresConnectionManager<NoTls>>,
 ) -> bool {
-    // Send mqtt message to node
-    if let Err(e) = commands::unregistered_notify(mqtt_cli, node_identifier) {
-        error!("Could not send UnregisterNotify command to node. {}", e);
-        return false
-    }
 
     if !remove_from_mqtt_users(db_conn_pool.clone(), &node_identifier) {
         error!("Could not remove node from mqtt users table.");
@@ -152,7 +158,7 @@ pub fn unregister_node(
         return false
     }
 
-    if !remove_node_from_node_table(db_conn_pool.clone(), &node_identifier) {
+    if !remove_node_from_node_table(db_conn_pool, &node_identifier) {
         error!("Could not remove node from node table.");
         return false
     }

@@ -8,9 +8,9 @@ use crate::settings::{NeutronCommunicator, SettingsDatabase, SettingsWebInterfac
 use crate::external_interface::structs::{ElementsFiltered, NodeFiltered, NodeInfoEdit};
 use crate::{BLACKBOX_MQTT_USERNAME, INTERFACE_MQTT_USERNAME};
 
-use postgres::params::{ConnectParams, Host};
+use postgres::{Config, tls::NoTls};
 use r2d2::Pool;
-use r2d2_postgres::{PostgresConnectionManager, TlsMode};
+use r2d2_postgres::{PostgresConnectionManager};
 
 const MQTT_USERNAME_UNREGISTERED: &str = "unregistered_node";
 
@@ -47,22 +47,25 @@ pub fn init(
     mqtt_blackbox_pass: &str,
     web_interface: &SettingsWebInterface,
     neutron_communicators: &[NeutronCommunicator],
-) -> Result<(Pool<PostgresConnectionManager>), i8> {
-    let builder = ConnectParams::builder()
-        .port(db_settings.db_port.parse::<u16>().unwrap())
-        .database(&db_settings.db_name)
-        .user(
-            &db_settings.db_username,
-            if !db_settings.db_password.is_empty() {
-                Some(&db_settings.db_password)
-            } else {
-                None
-            },
-        )
-        .build(Host::Tcp(db_settings.db_ip.to_string()));
+) -> Result<Pool<PostgresConnectionManager<NoTls>>, i8> {
+    let mut builder = Config::new();
 
-    let manager = PostgresConnectionManager::new(builder.clone(), TlsMode::None).unwrap();
-    let manager_return = PostgresConnectionManager::new(builder, TlsMode::None).unwrap();
+    builder.host(&db_settings.db_ip)
+    .port(db_settings.db_port.parse::<u16>().unwrap())
+    .dbname(&db_settings.db_name)
+    .user(
+        &db_settings.db_username
+    )
+    .password(
+        if !db_settings.db_password.is_empty() {
+            &db_settings.db_password
+        } else {
+            ""
+        }
+    );
+
+    let manager = PostgresConnectionManager::new(builder.clone(), NoTls);
+    let manager_return = PostgresConnectionManager::new(builder, NoTls);
 
     let _pool = Pool::new(manager);
     match _pool {
@@ -126,7 +129,7 @@ pub fn init(
                         && !neutron_communicator.mqtt_username.is_empty()
                         && !check_mqtt_user_exists(db.clone(), &neutron_communicator.mqtt_username)
                     {
-                        if !set_neutron_communicator_creds(
+                        if let false = set_neutron_communicator_creds(
                             db.clone(),
                             &neutron_communicator.mqtt_username,
                             &neutron_communicator.mqtt_password,
@@ -140,36 +143,40 @@ pub fn init(
             }
 
             // Set all node states to 0
-            edit_node_state_global(false, db.clone());
+            edit_node_state_global(false, db);
         }
         Err(e) => error!("Database connection failed. {}", e),
     }
 
     info!("Database initialization complete.");
 
-    Ok(Pool::new(manager_return).unwrap())
+    match Pool::new(manager_return) {
+        Ok(pool) => Ok(pool),
+        Err(e) => {
+            error!("Could not create PostgreSQL pool, {}", e);
+            Err(1)
+        }
+    }
 }
 
 /**
  * Queries the database to check if a table exists.
  * Returns a boolean true if found.
  */
-fn table_exists(table_name: &str, db_conn: Pool<PostgresConnectionManager>) -> bool {
+fn table_exists(table_name: &str, db_conn: Pool<PostgresConnectionManager<NoTls>>) -> bool {
     let mut _conn = db_conn.get().unwrap();
 
     let comm = format!("SELECT 1 FROM {} LIMIT 1;", table_name);
 
-    let query = _conn.execute(&comm, &[]);
-    match query {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    let query = _conn.execute(comm.as_str(), &[]);
+
+    query.is_ok()
 }
 
 /**
  * Generates <TABLE_BLACKBOX_NODES>.
  */
-fn create_table_nodes(db_conn: Pool<PostgresConnectionManager>) -> bool {
+fn create_table_nodes(db_conn: Pool<PostgresConnectionManager<NoTls>>) -> bool {
     let mut _conn = db_conn.get().unwrap();
 
     let comm = format!(
@@ -182,13 +189,13 @@ fn create_table_nodes(db_conn: Pool<PostgresConnectionManager>) -> bool {
         TABLE_BLACKBOX_NODES
     );
 
-    let query = _conn.execute(&comm, &[]);
+    let query = _conn.execute(comm.as_str(), &[]);
 
     match query {
-        Ok(_) => return true,
+        Ok(_) => true,
         Err(e) => {
             error!("Failed to create table {}. {}", TABLE_BLACKBOX_NODES, e);
-            return false;
+            false
         }
     }
 }
@@ -196,7 +203,7 @@ fn create_table_nodes(db_conn: Pool<PostgresConnectionManager>) -> bool {
 /**
  * Generates <TABLE_BLACKBOX_ELEMENTS>.
  */
-fn create_table_elements(db_conn: Pool<PostgresConnectionManager>) -> bool {
+fn create_table_elements(db_conn: Pool<PostgresConnectionManager<NoTls>>) -> bool {
     let mut _conn = db_conn.get().unwrap();
 
     let comm = format!(
@@ -211,13 +218,13 @@ fn create_table_elements(db_conn: Pool<PostgresConnectionManager>) -> bool {
         TABLE_BLACKBOX_ELEMENTS
     );
 
-    let query = _conn.execute(&comm, &[]);
+    let query = _conn.execute(comm.as_str(), &[]);
 
     match query {
-        Ok(_) => return true,
+        Ok(_) => true,
         Err(e) => {
             error!("Failed to create table {}. {}", TABLE_BLACKBOX_ELEMENTS, e);
-            return false;
+            false
         }
     }
 }
@@ -225,7 +232,7 @@ fn create_table_elements(db_conn: Pool<PostgresConnectionManager>) -> bool {
 /**
  *  Generates <MYSQL_MQTT_USERS_TABLE>.
  */
-fn create_table_mqtt_users(db_conn: Pool<PostgresConnectionManager>) -> bool {
+fn create_table_mqtt_users(db_conn: Pool<PostgresConnectionManager<NoTls>>) -> bool {
     let mut _conn = db_conn.get().unwrap();
 
     let comm = format!(
@@ -238,13 +245,13 @@ fn create_table_mqtt_users(db_conn: Pool<PostgresConnectionManager>) -> bool {
         TABLE_MQTT_USERS
     );
 
-    let query = _conn.execute(&comm, &[]);
+    let query = _conn.execute(comm.as_str(), &[]);
 
     match query {
-        Ok(_) => return true,
+        Ok(_) => true,
         Err(e) => {
             error!("Failed to create table {}. {}", TABLE_MQTT_USERS, e);
-            return false;
+            false
         }
     }
 }
@@ -252,7 +259,7 @@ fn create_table_mqtt_users(db_conn: Pool<PostgresConnectionManager>) -> bool {
 /**
  * Generates <MYSQL_MQTT_ACL_TABLE>.
  */
-fn create_table_mqtt_acl(db_conn: Pool<PostgresConnectionManager>) -> bool {
+fn create_table_mqtt_acl(db_conn: Pool<PostgresConnectionManager<NoTls>>) -> bool {
     let mut _conn = db_conn.get().unwrap();
 
     let comm = format!(
@@ -264,13 +271,13 @@ fn create_table_mqtt_acl(db_conn: Pool<PostgresConnectionManager>) -> bool {
         TABLE_MQTT_ACL
     );
 
-    let query = _conn.execute(&comm, &[]);
+    let query = _conn.execute(comm.as_str(), &[]);
 
     match query {
-        Ok(_) => return true,
+        Ok(_) => true,
         Err(e) => {
             error!("Failed to create table {}. {}", TABLE_MQTT_ACL, e);
-            return false;
+            false
         }
     }
 }
@@ -280,7 +287,7 @@ fn create_table_mqtt_acl(db_conn: Pool<PostgresConnectionManager>) -> bool {
  * Returns false if user isn't found. \
  * Panics if the query wasn't able to run.
  */
-fn check_mqtt_user_exists(db_conn: Pool<PostgresConnectionManager>, username: &str) -> bool {
+fn check_mqtt_user_exists(db_conn: Pool<PostgresConnectionManager<NoTls>>, username: &str) -> bool {
     let mut _conn = db_conn.get().unwrap();
 
     let comm = format!(
@@ -288,14 +295,10 @@ fn check_mqtt_user_exists(db_conn: Pool<PostgresConnectionManager>, username: &s
         TABLE_MQTT_USERS, username
     );
 
-    let res = _conn.query(&comm, &[]);
+    let res = _conn.query(comm.as_str(), &[]);
     match res {
         Ok(rows) => {
-            if rows.is_empty() {
-                return false;
-            } else {
-                return true;
-            }
+            !rows.is_empty()
         }
         Err(e) => panic!("Could not check existance of mqtt user. {}", e),
     }
@@ -313,7 +316,7 @@ fn check_mqtt_user_exists(db_conn: Pool<PostgresConnectionManager>, username: &s
  * Handles self error messages.
  */
 pub fn set_external_interface_creds(
-    db_conn: Pool<PostgresConnectionManager>,
+    db_conn: Pool<PostgresConnectionManager<NoTls>>,
     using_same_db: bool,
     web_interface_mqtt_password: &str,
 ) -> bool {
@@ -332,7 +335,7 @@ pub fn set_external_interface_creds(
         }
 
         // Add external_interface credentials to the users table
-        if !add_node_to_mqtt_users(db_conn.clone(), &INTERFACE_MQTT_USERNAME, &hash) {
+        if !add_node_to_mqtt_users(db_conn, &INTERFACE_MQTT_USERNAME, &hash) {
             return false;
         }
 
@@ -340,28 +343,28 @@ pub fn set_external_interface_creds(
         //TODO: Replace this var with a const
         let topic_self = "external_interface/#";
 
-        if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &topic_self, &MQTT_READ_WRITE]) {
+        if let Err(e) = _conn.query(&query, &[&INTERFACE_MQTT_USERNAME, &topic_self, &MQTT_READ_WRITE]) {
             error!("Could not add an ACL entry (self) for external_interface. {}", e);
             return false;
         }
 
         // For registering to global topic (read/sub)
-        if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &REGISTERED_TOPIC, &MQTT_READ_ONLY]) {
+        if let Err(e) = _conn.query(&query, &[&INTERFACE_MQTT_USERNAME, &REGISTERED_TOPIC, &MQTT_READ_ONLY]) {
             error!("Could not add an ACL entry (global) for external_interface. {}", e);
             return false;
         }
-        if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &REGISTERED_TOPIC, &MQTT_SUBSCRIBE_ONLY]) {
+        if let Err(e) = _conn.query(&query, &[&INTERFACE_MQTT_USERNAME, &REGISTERED_TOPIC, &MQTT_SUBSCRIBE_ONLY]) {
             error!("Could not add an ACL entry (global) for external_interface. {}", e);
             return false;
         }
 
         // For registering to the NECO topic (write)
-        if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_WRITE_ONLY]) {
+        if let Err(e) = _conn.query(&query, &[&INTERFACE_MQTT_USERNAME, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_WRITE_ONLY]) {
             error!("Could not add an ACL entry (NECO) for external_interface. {}", e);
             return false;
         }
         // For registering to the NECO ids topic (write)
-        if let Err(e) = query.execute(&[&INTERFACE_MQTT_USERNAME, &[NEUTRONCOMMUNICATOR_TOPIC, "/#"].concat(), &MQTT_WRITE_ONLY]) {
+        if let Err(e) = _conn.query(&query, &[&INTERFACE_MQTT_USERNAME, &[NEUTRONCOMMUNICATOR_TOPIC, "/#"].concat(), &MQTT_WRITE_ONLY]) {
             error!("Could not add an ACL entry (NECO) for external_interface. {}", e);
             return false;
         }
@@ -373,7 +376,7 @@ pub fn set_external_interface_creds(
         );
     }
 
-    return true;
+    true
 }
 
 /**
@@ -385,7 +388,7 @@ pub fn set_external_interface_creds(
  * Handles self error messages.
  */
 pub fn set_mqtt_bb_creds(
-    db_conn: Pool<PostgresConnectionManager>,
+    db_conn: Pool<PostgresConnectionManager<NoTls>>,
     using_same_db: bool,
     bb_mqtt_password: &str,
 ) -> bool {
@@ -398,7 +401,7 @@ pub fn set_mqtt_bb_creds(
             "DELETE FROM mqtt_users WHERE USERNAME='{}';",
             BLACKBOX_MQTT_USERNAME
         );
-        match _conn.execute(&query1, &[]) {
+        match _conn.execute(query1.as_str(), &[]) {
             Ok(_) => {}
             Err(e) => {
                 error!(
@@ -415,7 +418,7 @@ pub fn set_mqtt_bb_creds(
                     VALUES ($1, $2, $3);",
             &TABLE_MQTT_USERS,
         );
-        match _conn.execute(&query2, &[&BLACKBOX_MQTT_USERNAME, &hash, &true]) {
+        match _conn.execute(query2.as_str(), &[&BLACKBOX_MQTT_USERNAME, &hash, &true]) {
             Ok(_) => {
                 debug!(
                     "BlackBox MQTT user credentials inserted. Hashed: {} Length: {}",
@@ -439,14 +442,14 @@ pub fn set_mqtt_bb_creds(
         );
     }
 
-    return true;
+    true
 }
 
 /**
  * Adds the neutron communicator credentials to the mqtt_users and mqtt_acl tables.
  */
 pub fn set_neutron_communicator_creds(
-    db_conn: Pool<PostgresConnectionManager>,
+    db_conn: Pool<PostgresConnectionManager<NoTls>>,
     username: &str,
     password: &str,
 ) -> bool {
@@ -463,29 +466,29 @@ pub fn set_neutron_communicator_creds(
     let hash = generate_mqtt_hash(password);
 
     // Add external_interface credentials to the users table
-    if !add_node_to_mqtt_users(db_conn.clone(), username, &hash) {
+    if !add_node_to_mqtt_users(db_conn, username, &hash) {
         return false;
     }
 
     // Subscribe r/w to "neutron_communicators/[username]"
     let topic_self = "neutron_communicators/%u";
-    if let Err(e) = query.execute(&[&username, &topic_self, &MQTT_READ_WRITE]) {
+    if let Err(e) = _conn.query(&query, &[&username, &topic_self, &MQTT_READ_WRITE]) {
         error!("Could not add an ACL entry for NECO. Topic: {} Error: {}", topic_self, e);
         return false;
     }
 
     // Subscribe r-only to "neutron_communicators"
-    if let Err(e) = query.execute(&[&username, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_READ_ONLY]) {
+    if let Err(e) = _conn.query(&query, &[&username, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_READ_ONLY]) {
         error!("Could not add an ACL entry for NECO. Topic: {} Error: {}", NEUTRONCOMMUNICATOR_TOPIC, e);
         return false;
     }
-    if let Err(e) = query.execute(&[&username, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_SUBSCRIBE_ONLY]) {
+    if let Err(e) = _conn.query(&query, &[&username, &NEUTRONCOMMUNICATOR_TOPIC, &MQTT_SUBSCRIBE_ONLY]) {
         error!("Could not add an ACL entry for NECO. Topic: {} Error: {}", NEUTRONCOMMUNICATOR_TOPIC, e);
         return false;
     }
 
     // Subscribe write-only to "external_interface"
-    if let Err(e) = query.execute(&[&username, &INTERFACE_MQTT_USERNAME, &MQTT_WRITE_ONLY]) {
+    if let Err(e) = _conn.query(&query, &[&username, &INTERFACE_MQTT_USERNAME, &MQTT_WRITE_ONLY]) {
         error!("Could not add an ACL entry for NECO. Topic: {} Error: {}", INTERFACE_MQTT_USERNAME, e);
         return false;
     }
@@ -502,7 +505,7 @@ pub fn set_neutron_communicator_creds(
 pub fn set_discovery_mode(
     enable_discovery: bool,
     mqtt_unregistered_pass: &str,
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
     mqtt_cli: Option<&crate::mqtt::AsyncClient>,
 ) -> bool {
     if enable_discovery {
@@ -523,7 +526,7 @@ pub fn set_discovery_mode(
                 "SET client_min_messages = ERROR; DROP TABLE IF EXISTS {};",
                 TABLE_BLACKBOX_UNREGISTERED
             );
-            let conn = conn_pool.get().unwrap();
+            let mut conn = conn_pool.get().unwrap();
             conn.batch_execute(&query).unwrap();
 
             // Create a new table for unregistered nodes
@@ -535,7 +538,7 @@ pub fn set_discovery_mode(
                             );",
                 TABLE_BLACKBOX_UNREGISTERED
             );
-            let res = _conn.execute(&query, &[]);
+            let res = _conn.execute(query.as_str(), &[]);
             match res {
                 Ok(_) => {}
                 Err(e) => error!("Failed to create unregistered node table. {}", e),
@@ -568,13 +571,13 @@ pub fn set_discovery_mode(
                 "SET client_min_messages = ERROR; DROP TABLE IF EXISTS {};",
                 TABLE_BLACKBOX_UNREGISTERED
             );
-            let conn = conn_pool.get().unwrap();
+            let mut conn = conn_pool.get().unwrap();
             conn.batch_execute(&query).unwrap();
 
             info!("DISCOVERY DISABLED.");
         }
     }
-    return true;
+    true
 }
 
 /**
@@ -585,9 +588,9 @@ pub fn set_discovery_mode(
 pub fn add_to_unregistered_table(
     client_id: &str,
     elements_summary: &str,
-    db_pool: Pool<PostgresConnectionManager>,
+    db_pool: Pool<PostgresConnectionManager<NoTls>>,
 ) -> bool {
-    let conn = db_pool.get().unwrap();
+    let mut conn = db_pool.get().unwrap();
 
     let query = format!(
         "INSERT INTO {} (client_id, elements_summary)
@@ -595,7 +598,7 @@ pub fn add_to_unregistered_table(
         &TABLE_BLACKBOX_UNREGISTERED
     );
 
-    let res = conn.execute(&query, &[&client_id, &elements_summary]);
+    let res = conn.execute(query.as_str(), &[&client_id, &elements_summary]);
 
     match res {
         Ok(res) => {
@@ -615,7 +618,7 @@ pub fn add_to_unregistered_table(
         }
     }
 
-    return true;
+    true
 }
 
 /**
@@ -624,20 +627,20 @@ pub fn add_to_unregistered_table(
  */
 pub fn remove_from_unregistered_table(
     client_id: &str,
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
 ) -> bool {
-    let conn = conn_pool.get().unwrap();
+    let mut conn = conn_pool.get().unwrap();
 
     let query = format!(
         "DELETE FROM {} WHERE CLIENT_ID = $1;",
         &TABLE_BLACKBOX_UNREGISTERED
     );
 
-    let res = conn.execute(&query, &[&client_id]);
+    let res = conn.execute(query.as_str(), &[&client_id]);
 
     match res {
         Ok(res) => {
-            if res > 0 || res == 0 {
+            if res > 0 {
                 debug!("Unregistered node removed. Client_ID: {}.", &client_id);
             } else {
                 debug!("Unregistered not removed. Client_ID: {}.", &client_id);
@@ -653,7 +656,7 @@ pub fn remove_from_unregistered_table(
         }
     }
 
-    return true;
+    true
 }
 
 // /**
@@ -661,9 +664,9 @@ pub fn remove_from_unregistered_table(
 //  * If empty, returns 1.
 //  */
 // pub fn get_unregistered_table(
-//     conn_pool: Pool<PostgresConnectionManager>,
+//     conn_pool: Pool<PostgresConnectionManager<NoTls>>,
 // ) -> Result<Vec<UnregisteredNodeItem>, i8> {
-//     let conn = conn_pool.get().unwrap();
+//     let mut conn = conn_pool.get().unwrap();
 
 //     let query = format!("SELECT * FROM {};", TABLE_BLACKBOX_UNREGISTERED);
 
@@ -702,11 +705,11 @@ pub fn remove_from_unregistered_table(
  * Returns true if no error was encountered.
  */
 pub fn add_node_to_mqtt_users(
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
     username: &str,
     hash: &str,
 ) -> bool {
-    let conn = conn_pool.get().unwrap();
+    let mut conn = conn_pool.get().unwrap();
 
     let query = format!(
         "INSERT INTO {} (username, password, superuser)
@@ -714,7 +717,7 @@ pub fn add_node_to_mqtt_users(
         &TABLE_MQTT_USERS
     );
 
-    let res = conn.execute(&query, &[&username, &hash, &false]);
+    let res = conn.execute(query.as_str(), &[&username, &hash, &false]);
 
     match res {
         Ok(res) => {
@@ -737,19 +740,19 @@ pub fn add_node_to_mqtt_users(
         }
     }
 
-    return true;
+    true
 }
 
 /**
  * Removes MQTT USERS entry from the <TABLE_MQTT_USERS> with the provided username. \
  * Returns true if successful.
  */
-pub fn remove_from_mqtt_users(conn_pool: Pool<PostgresConnectionManager>, username: &str) -> bool {
-    let conn = conn_pool.get().unwrap();
+pub fn remove_from_mqtt_users(conn_pool: Pool<PostgresConnectionManager<NoTls>>, username: &str) -> bool {
+    let mut conn = conn_pool.get().unwrap();
 
     let query = format!("DELETE FROM {} WHERE USERNAME = $1;", &TABLE_MQTT_USERS);
 
-    let res = conn.execute(&query, &[&username]);
+    let res = conn.execute(query.as_str(), &[&username]);
 
     match res {
         Ok(res) => {
@@ -771,7 +774,7 @@ pub fn remove_from_mqtt_users(conn_pool: Pool<PostgresConnectionManager>, userna
         }
     }
 
-    return true;
+    true
 }
 
 /**
@@ -780,25 +783,26 @@ pub fn remove_from_mqtt_users(conn_pool: Pool<PostgresConnectionManager>, userna
  * Returns true if a row was successfully inserted.
  */
 pub fn add_node_to_mqtt_acl(
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
     unregistered: bool,
     username: &str,
 ) -> bool {
-    let conn = conn_pool.get().unwrap();
-    let _conn = conn_pool.get().unwrap();
+    let mut conn = conn_pool.get().unwrap();
+    let mut _conn = conn_pool.get().unwrap();
 
     // Allows the node to subscribe and publish to "registered/<username> || unregistered/<client_id>"
-    let topic_self;
-    // And to only subscribe to "registered" || "unregistered"
-    let topic_global;
-
-    if unregistered {
-        topic_self = format!("unregistered/%c");
-        topic_global = format!("unregistered");
+    let topic_self = if unregistered {
+        "unregistered/%c"
     } else {
-        topic_self = format!("registered/%u");
-        topic_global = format!("registered");
-    }
+        "registered/%u"
+    };
+
+    // And to only subscribe to "registered" || "unregistered"
+    let topic_global = if unregistered {
+        "unregistered"
+    } else {
+        "registered"
+    };
 
     // For registering to self topic (read/write)
     let query = format!(
@@ -807,7 +811,7 @@ pub fn add_node_to_mqtt_acl(
         &TABLE_MQTT_ACL
     );
 
-    let res = conn.execute(&query, &[&username, &topic_self, &MQTT_READ_WRITE]);
+    let res = conn.execute(query.as_str(), &[&username, &topic_self, &MQTT_READ_WRITE]);
 
     match res {
         Ok(res) => {
@@ -838,8 +842,8 @@ pub fn add_node_to_mqtt_acl(
         &TABLE_MQTT_ACL
     );
 
-    let _res = _conn.execute(&query, &[&username, &topic_global, &MQTT_SUBSCRIBE_ONLY]);
-    let res = _conn.execute(&query, &[&username, &topic_global, &MQTT_READ_ONLY]);
+    let _res = _conn.execute(query.as_str(), &[&username, &topic_global, &MQTT_SUBSCRIBE_ONLY]);
+    let res = _conn.execute(query.as_str(), &[&username, &topic_global, &MQTT_READ_ONLY]);
 
     match res {
         Ok(res) => {
@@ -862,7 +866,7 @@ pub fn add_node_to_mqtt_acl(
         }
     }
 
-    return true;
+    true
 }
 
 /**
@@ -870,14 +874,14 @@ pub fn add_node_to_mqtt_acl(
  * Returns true if succeded.
  */
 pub fn remove_node_from_mqtt_acl(
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
     username: &str,
 ) -> bool {
-    let conn = conn_pool.get().unwrap();
+    let mut conn = conn_pool.get().unwrap();
 
     let query = format!("DELETE FROM {} WHERE USERNAME = $1;", &TABLE_MQTT_ACL);
 
-    let res = conn.execute(&query, &[&username]);
+    let res = conn.execute(query.as_str(), &[&username]);
 
     match res {
         Ok(res) => {
@@ -899,15 +903,15 @@ pub fn remove_node_from_mqtt_acl(
         }
     }
 
-    return true;
+    true
 }
 
 /**
  * Creates a new registered node entry to the <TABLE_BLACKBOX_NODES>.
  * Returns true if a row was successfully inserted.
  */
-pub fn add_node_to_node_table(conn_pool: Pool<PostgresConnectionManager>, node: Node) -> bool {
-    let conn = conn_pool.get().unwrap();
+pub fn add_node_to_node_table(conn_pool: Pool<PostgresConnectionManager<NoTls>>, node: Node) -> bool {
+    let mut conn = conn_pool.get().unwrap();
 
     let query = format!(
         "INSERT INTO {} (identifier, name, state)
@@ -916,7 +920,7 @@ pub fn add_node_to_node_table(conn_pool: Pool<PostgresConnectionManager>, node: 
     );
 
     let res = conn.execute(
-        &query,
+        query.as_str(),
         &[
             &node.identifier,
             &node.name,
@@ -948,7 +952,7 @@ pub fn add_node_to_node_table(conn_pool: Pool<PostgresConnectionManager>, node: 
         }
     }
 
-    return true;
+    true
 }
 
 /**
@@ -956,17 +960,17 @@ pub fn add_node_to_node_table(conn_pool: Pool<PostgresConnectionManager>, node: 
  * Returns true if succeded.
  */
 pub fn remove_node_from_node_table(
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
     node_identifier: &str,
 ) -> bool {
-    let conn = conn_pool.get().unwrap();
+    let mut conn = conn_pool.get().unwrap();
 
     let query = format!(
         "DELETE FROM {} WHERE identifier = $1;",
         &TABLE_BLACKBOX_NODES
     );
 
-    let res = conn.execute(&query, &[&node_identifier]);
+    let res = conn.execute(query.as_str(), &[&node_identifier]);
 
     match res {
         Ok(res) => {
@@ -987,7 +991,7 @@ pub fn remove_node_from_node_table(
         }
     }
 
-    return true;
+    true
 }
 
 // /**
@@ -996,9 +1000,9 @@ pub fn remove_node_from_node_table(
 //  */
 // pub fn get_node_from_node_table(
 //     node_identifier: &str,
-//     conn_pool: Pool<PostgresConnectionManager>,
+//     conn_pool: Pool<PostgresConnectionManager<NoTls>>,
 // ) -> Result<Node, i8> {
-//     let conn = conn_pool.get().unwrap();
+//     let mut conn = conn_pool.get().unwrap();
 
 //     let query = format!(
 //         "SELECT * FROM {} WHERE identifier = $1;",
@@ -1062,21 +1066,21 @@ pub fn remove_node_from_node_table(
  * Consists of two queries to two tables, then it combines them into one struct and is then returned as an Option
  */
 pub fn get_node_element_list(
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
 ) -> Option<Vec<NodeFiltered>> {
-    let conn = conn_pool.get().unwrap();
+    let mut conn = conn_pool.get().unwrap();
 
     let query_nodes = format!(
         "SELECT identifier, name, state FROM {};",
         TABLE_BLACKBOX_NODES
     );
-    let query_result_nodes = conn.query(&query_nodes, &[]);
+    let query_result_nodes = conn.query(query_nodes.as_str(), &[]);
 
     let query_elements = format!(
         "SELECT node_identifier, address, name, element_type, zone, data FROM {};",
         TABLE_BLACKBOX_ELEMENTS
     );
-    let query_result_elements = conn.query(&query_elements, &[]);
+    let query_result_elements = conn.query(query_elements.as_str(), &[]);
 
     let mut element_filtered_list: Vec<ElementsFiltered> = Vec::new();
     match query_result_elements {
@@ -1120,7 +1124,7 @@ pub fn get_node_element_list(
         }
         Err(e) => {
             warn!("Could not get node list from database. {}", e);
-            return None;
+            None
         }
     }
 }
@@ -1130,9 +1134,9 @@ pub fn get_node_element_list(
  * If no entries found, returns 1.
  */
 // pub fn get_states_from_node_table(
-//     conn_pool: Pool<PostgresConnectionManager>,
+//     conn_pool: Pool<PostgresConnectionManager<NoTls>>,
 // ) -> Result<Vec<NodeState>, i8> {
-//     let conn = conn_pool.get().unwrap();
+//     let mut conn = conn_pool.get().unwrap();
 
 //     let query = format!("SELECT identifier, state FROM {};", TABLE_BLACKBOX_NODES);
 
@@ -1182,16 +1186,16 @@ pub fn get_node_element_list(
 pub fn edit_node_state(
     node_identifier: &str,
     new_state: bool,
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
 ) -> bool {
-    let conn = conn_pool.get().unwrap();
+    let mut conn = conn_pool.get().unwrap();
 
     let query = format!(
         "UPDATE {} SET state = $1 WHERE identifier = $2;",
         TABLE_BLACKBOX_NODES
     );
 
-    let res = conn.execute(&query, &[&new_state, &node_identifier]);
+    let res = conn.execute(query.as_str(), &[&new_state, &node_identifier]);
 
     match res {
         Ok(res) => {
@@ -1217,19 +1221,19 @@ pub fn edit_node_state(
         }
     }
 
-    return true;
+    true
 }
 
 /**
  * Sets the state column for each row in the <TABLE_BLACKBOX_NODES> with the provided new_state.
  * Returns true if query was successful.
  */
-pub fn edit_node_state_global(new_state: bool, conn_pool: Pool<PostgresConnectionManager>) -> bool {
-    let conn = conn_pool.get().unwrap();
+pub fn edit_node_state_global(new_state: bool, conn_pool: Pool<PostgresConnectionManager<NoTls>>) -> bool {
+    let mut conn = conn_pool.get().unwrap();
 
     let query = format!("UPDATE {} SET state = $1;", TABLE_BLACKBOX_NODES);
 
-    let res = conn.execute(&query, &[&new_state]);
+    let res = conn.execute(query.as_str(), &[&new_state]);
 
     match res {
         Ok(res) => {
@@ -1246,7 +1250,7 @@ pub fn edit_node_state_global(new_state: bool, conn_pool: Pool<PostgresConnectio
         }
     }
 
-    return true;
+    true
 }
 
 /**
@@ -1256,22 +1260,22 @@ pub fn edit_node_state_global(new_state: bool, conn_pool: Pool<PostgresConnectio
  *
  * Returns true if successful.
  */
-pub fn edit_node_info(node: NodeInfoEdit, conn_pool: Pool<PostgresConnectionManager>) -> bool {
-    let conn = conn_pool.get().unwrap();
+pub fn edit_node_info(node: NodeInfoEdit, conn_pool: Pool<PostgresConnectionManager<NoTls>>) -> bool {
+    let mut conn = conn_pool.get().unwrap();
     let mut successful = true;
 
     let query = format!(
         "UPDATE {} SET NAME = $1 WHERE identifier = $2;",
         TABLE_BLACKBOX_NODES
     );
-    let res = conn.execute(&query, &[&node.name, &node.identifier]);
+    let res = conn.execute(query.as_str(), &[&node.name, &node.identifier]);
 
     for element in node.elements {
         let query = format!(
             "UPDATE {} SET NAME = $1, ZONE = $2 WHERE (node_identifier = $3 AND address = $4);",
             TABLE_BLACKBOX_ELEMENTS
         );
-        let res = conn.execute(&query, &[&element.name, &element.zone, &node.identifier, &element.address]);
+        let res = conn.execute(query.as_str(), &[&element.name, &element.zone, &node.identifier, &element.address]);
 
         match res {
             Ok(res) => {
@@ -1314,17 +1318,17 @@ pub fn edit_node_info(node: NodeInfoEdit, conn_pool: Pool<PostgresConnectionMana
         }
     }
 
-    return successful;
+    successful
 }
 
 /**
  * Goes through a list of Elements and adds each to <TABLE_BLACKBOX_ELEMENTS>.
  */
 pub fn add_elements_to_element_table(
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
     elements: Vec<Element>,
 ) -> bool {
-    let conn = conn_pool.get().unwrap();
+    let mut conn = conn_pool.get().unwrap();
 
     for element in elements {
         let query = format!(
@@ -1334,7 +1338,7 @@ pub fn add_elements_to_element_table(
         );
 
         let res = conn.execute(
-            &query,
+            query.as_str(),
             &[
                 &element.node_identifier,
                 &element.address,
@@ -1364,24 +1368,24 @@ pub fn add_elements_to_element_table(
             }
         }
     }
-    return true;
+    true
 }
 
 /**
  * Removes all elements from <TABLE_BLACKBOX_ELEMENTS> matching node_id.
  */
 pub fn remove_elements_from_elements_table(
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
     node_id: &str,
 ) -> bool {
-    let conn = conn_pool.get().unwrap();
+    let mut conn = conn_pool.get().unwrap();
 
     let query = format!(
         "DELETE FROM {} WHERE node_identifier = $1;",
         TABLE_BLACKBOX_ELEMENTS
     );
 
-    let res = conn.execute(&query, &[&node_id]);
+    let res = conn.execute(query.as_str(), &[&node_id]);
 
     match res {
         Ok(res) => {
@@ -1395,7 +1399,7 @@ pub fn remove_elements_from_elements_table(
         }
     }
 
-    return true;
+    true
 }
 
 /**
@@ -1405,16 +1409,16 @@ pub fn edit_element_data_from_element_table(
     node_identifier: &str,
     element_address: &str,
     data: &str,
-    conn_pool: Pool<PostgresConnectionManager>,
+    conn_pool: Pool<PostgresConnectionManager<NoTls>>,
 ) -> bool {
-    let conn = conn_pool.get().unwrap();
+    let mut conn = conn_pool.get().unwrap();
 
     let query = format!(
         "UPDATE {} SET DATA = $1 WHERE node_identifier = $2 AND ADDRESS = $3;",
         TABLE_BLACKBOX_ELEMENTS
     );
 
-    let res = conn.execute(&query, &[&data, &node_identifier, &element_address]);
+    let res = conn.execute(query.as_str(), &[&data, &node_identifier, &element_address]);
 
     match res {
         Ok(res) => {
@@ -1434,33 +1438,33 @@ pub fn edit_element_data_from_element_table(
         }
     }
 
-    return true;
+    true
 }
 
-/**
- * Removes any tables that BlackBox uses.
- */
-pub fn sanitize_db_from_blackbox(db_pool: Pool<PostgresConnectionManager>) {
-    let con = db_pool.get().unwrap();
+// /**
+//  * Removes any tables that BlackBox uses.
+//  */
+// pub fn sanitize_db_from_blackbox(db_pool: Pool<PostgresConnectionManager<NoTls>>) {
+//     let mut conn = db_pool.get().unwrap();
 
-    let query = format!(
-        "DROP TABLE IF EXISTS {}, {}, {};",
-        TABLE_BLACKBOX_UNREGISTERED, TABLE_BLACKBOX_NODES, TABLE_BLACKBOX_ELEMENTS
-    );
+//     let query = format!(
+//         "DROP TABLE IF EXISTS {}, {}, {};",
+//         TABLE_BLACKBOX_UNREGISTERED, TABLE_BLACKBOX_NODES, TABLE_BLACKBOX_ELEMENTS
+//     );
 
-    con.execute(&query, &[]).unwrap();
-}
+//     conn.execute(query.as_str(), &[]).unwrap();
+// }
 
-/**
- * Removes any tables that were made for Mosquitto.
- */
-pub fn sanitize_db_from_mosquitto(db_pool: Pool<PostgresConnectionManager>) {
-    let con = db_pool.get().unwrap();
+// /**
+//  * Removes any tables that were made for Mosquitto.
+//  */
+// pub fn sanitize_db_from_mosquitto(db_pool: Pool<PostgresConnectionManager<NoTls>>) {
+//     let mut conn = db_pool.get().unwrap();
 
-    let query = format!(
-        "DROP TABLE IF EXISTS {}, {};",
-        TABLE_MQTT_USERS, TABLE_MQTT_ACL
-    );
+//     let query = format!(
+//         "DROP TABLE IF EXISTS {}, {};",
+//         TABLE_MQTT_USERS, TABLE_MQTT_ACL
+//     );
 
-    con.execute(&query, &[]).unwrap();
-}
+//     conn.execute(query.as_str(), &[]).unwrap();
+// }
